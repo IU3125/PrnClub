@@ -13,8 +13,8 @@ import {
 import { db } from '../../firebase/config';
 import { useAuth } from '../../context/AuthContext';
 import { formatDistanceToNow } from 'date-fns';
-import { tr } from 'date-fns/locale';
-import { UserCircleIcon, TrashIcon } from '@heroicons/react/24/outline';
+import { enUS } from 'date-fns/locale';
+import { UserCircleIcon, TrashIcon, ChatBubbleLeftIcon } from '@heroicons/react/24/outline';
 
 const CommentSection = ({ videoId }) => {
   const [comments, setComments] = useState([]);
@@ -22,7 +22,7 @@ const CommentSection = ({ videoId }) => {
   const [loading, setLoading] = useState(true);
   const { currentUser, userRole } = useAuth();
 
-  // Yorumları getir
+  // Fetch comments
   useEffect(() => {
     const fetchComments = async () => {
       setLoading(true);
@@ -41,7 +41,7 @@ const CommentSection = ({ videoId }) => {
         
         setComments(commentsList);
       } catch (error) {
-        console.error('Yorumlar getirilirken hata oluştu:', error);
+        console.error('Error fetching comments:', error);
       } finally {
         setLoading(false);
       }
@@ -50,12 +50,12 @@ const CommentSection = ({ videoId }) => {
     fetchComments();
   }, [videoId]);
 
-  // Yorum ekle
+  // Add comment
   const handleAddComment = async (e) => {
     e.preventDefault();
     
     if (!currentUser) {
-      alert('Yorum yapmak için giriş yapmalısınız.');
+      alert('You must be logged in to comment.');
       return;
     }
     
@@ -67,130 +67,143 @@ const CommentSection = ({ videoId }) => {
       const commentData = {
         videoId,
         userId: currentUser.uid,
-        userName: currentUser.displayName || 'Anonim',
+        userName: currentUser.displayName || 'Anonymous',
         content: newComment,
         createdAt: serverTimestamp()
       };
       
       const docRef = await addDoc(collection(db, 'comments'), commentData);
       
-      // Yeni yorumu listeye ekle
+      // Add new comment to the list
       setComments([
         {
           id: docRef.id,
           ...commentData,
-          createdAt: new Date() // serverTimestamp() yerine geçici olarak
+          createdAt: new Date() // Temporary replacement for serverTimestamp()
         },
         ...comments
       ]);
       
       setNewComment('');
     } catch (error) {
-      console.error('Yorum eklenirken hata oluştu:', error);
+      console.error('Error adding comment:', error);
     }
   };
 
-  // Yorum sil
+  // Delete comment
   const handleDeleteComment = async (commentId) => {
     try {
       await deleteDoc(doc(db, 'comments', commentId));
       
-      // Yorumu listeden kaldır
+      // Remove comment from the list
       setComments(comments.filter(comment => comment.id !== commentId));
     } catch (error) {
-      console.error('Yorum silinirken hata oluştu:', error);
+      console.error('Error deleting comment:', error);
     }
   };
 
-  // Tarih biçimlendirme
+  // Format date
   const formatDate = (timestamp) => {
     if (!timestamp) return '';
     
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-    return formatDistanceToNow(date, { addSuffix: true, locale: tr });
+    return formatDistanceToNow(date, { addSuffix: true, locale: enUS });
   };
 
-  // Kullanıcının yorumu silme yetkisi var mı?
+  // Check if user can delete comment
   const canDeleteComment = (comment) => {
     if (!currentUser) return false;
     
-    // Admin her yorumu silebilir
+    // Admin can delete any comment
     if (userRole === 'admin') return true;
     
-    // Kullanıcı kendi yorumunu silebilir
+    // User can delete their own comment
     return comment.userId === currentUser.uid;
   };
 
   return (
-    <div className="bg-dark-700 rounded-lg p-4">
-      <h3 className="text-xl font-semibold text-white mb-4">Yorumlar ({comments.length})</h3>
+    <div className="bg-dark-700 rounded-lg p-6 shadow-lg">
+      <div className="flex items-center mb-6">
+        <ChatBubbleLeftIcon className="w-6 h-6 text-primary-400 mr-2" />
+        <h3 className="text-xl font-semibold text-white">Comments <span className="text-primary-400 text-lg ml-1">({comments.length})</span></h3>
+      </div>
       
-      {/* Yorum formu */}
+      {/* Comment form */}
       {currentUser ? (
-        <form onSubmit={handleAddComment} className="mb-6">
-          <div className="flex items-start space-x-3">
+        <form onSubmit={handleAddComment} className="mb-8">
+          <div className="flex items-start space-x-4">
             <div className="flex-shrink-0">
-              <UserCircleIcon className="w-10 h-10 text-gray-400" />
+              <div className="w-12 h-12 rounded-full bg-primary-700 flex items-center justify-center">
+                <UserCircleIcon className="w-10 h-10 text-primary-300" />
+              </div>
             </div>
             <div className="flex-grow">
               <textarea
                 value={newComment}
                 onChange={(e) => setNewComment(e.target.value)}
-                placeholder="Yorum yaz..."
-                className="w-full px-3 py-2 bg-dark-800 border border-dark-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-white"
+                placeholder="Write a comment..."
+                className="w-full px-4 py-3 bg-dark-800 border border-dark-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-white transition-all duration-200 resize-none"
                 rows="3"
               ></textarea>
-              <button
-                type="submit"
-                className="mt-2 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-md"
-                disabled={!newComment.trim()}
-              >
-                Yorum Yap
-              </button>
+              <div className="flex justify-end mt-3">
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition-colors duration-200 font-medium flex items-center"
+                  disabled={!newComment.trim()}
+                >
+                  <ChatBubbleLeftIcon className="w-5 h-5 mr-2" />
+                  Comment
+                </button>
+              </div>
             </div>
           </div>
         </form>
       ) : (
-        <div className="mb-6 p-4 bg-dark-800 rounded-md text-center">
-          <p className="text-gray-400">Yorum yapmak için giriş yapmalısınız.</p>
+        <div className="mb-8 p-5 bg-dark-800 rounded-lg border border-dark-600 text-center">
+          <p className="text-gray-300">You must be logged in to comment.</p>
         </div>
       )}
       
-      {/* Yorumlar listesi */}
+      {/* Comments list */}
       {loading ? (
-        <div className="flex justify-center items-center h-24">
-          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary-500"></div>
+        <div className="flex justify-center items-center h-32">
+          <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-primary-500"></div>
         </div>
       ) : comments.length > 0 ? (
-        <div className="space-y-4">
+        <div className="space-y-5">
           {comments.map(comment => (
-            <div key={comment.id} className="flex items-start space-x-3 p-3 bg-dark-800 rounded-md">
+            <div key={comment.id} className="flex items-start space-x-4 p-4 bg-dark-800 rounded-lg border border-dark-600 hover:border-dark-500 transition-all duration-200">
               <div className="flex-shrink-0">
-                <UserCircleIcon className="w-10 h-10 text-gray-400" />
+                <div className="w-12 h-12 rounded-full bg-primary-800 flex items-center justify-center">
+                  <UserCircleIcon className="w-10 h-10 text-primary-300" />
+                </div>
               </div>
               <div className="flex-grow">
                 <div className="flex justify-between items-start">
                   <div>
-                    <h4 className="font-medium text-white">{comment.userName}</h4>
-                    <p className="text-xs text-gray-500">{formatDate(comment.createdAt)}</p>
+                    <h4 className="font-medium text-white text-base">{comment.userName}</h4>
+                    <p className="text-xs text-gray-400">{formatDate(comment.createdAt)}</p>
                   </div>
                   {canDeleteComment(comment) && (
                     <button
                       onClick={() => handleDeleteComment(comment.id)}
-                      className="text-gray-500 hover:text-red-500"
-                      title="Yorumu Sil"
+                      className="text-gray-500 hover:text-red-500 transition-colors duration-200 p-1 rounded-full hover:bg-dark-700"
+                      title="Delete Comment"
                     >
                       <TrashIcon className="w-5 h-5" />
                     </button>
                   )}
                 </div>
-                <p className="mt-1 text-gray-300">{comment.content}</p>
+                <p className="mt-2 text-gray-200 leading-relaxed">{comment.content}</p>
               </div>
             </div>
           ))}
         </div>
       ) : (
-        <p className="text-center text-gray-400 py-4">Henüz yorum yapılmamış. İlk yorumu sen yap!</p>
+        <div className="text-center py-8 bg-dark-800 rounded-lg border border-dashed border-dark-600">
+          <ChatBubbleLeftIcon className="w-12 h-12 text-gray-500 mx-auto mb-3" />
+          <p className="text-gray-400">No comments yet. Be the first to comment!</p>
+        </div>
       )}
     </div>
   );

@@ -7,6 +7,7 @@ import { EyeIcon, ClockIcon } from '@heroicons/react/24/outline';
 const VideoCard = ({ video }) => {
   // Video süresini biçimlendir (saniye cinsinden)
   const formatDuration = (seconds) => {
+    if (!seconds && seconds !== 0) return '0:00';
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = seconds % 60;
     return `${minutes}:${remainingSeconds < 10 ? '0' : ''}${remainingSeconds}`;
@@ -14,6 +15,11 @@ const VideoCard = ({ video }) => {
 
   // İzlenme sayısını biçimlendir
   const formatViewCount = (count) => {
+    // Eğer count undefined veya null ise 0 olarak kabul et
+    if (count === undefined || count === null) {
+      return '0';
+    }
+    
     if (count >= 1000000) {
       return `${(count / 1000000).toFixed(1)}M`;
     } else if (count >= 1000) {
@@ -61,7 +67,7 @@ const VideoCard = ({ video }) => {
             <span>{video.uploader}</span>
             <div className="flex items-center">
               <EyeIcon className="w-4 h-4 mr-1" />
-              <span>{formatViewCount(video.viewCount)}</span>
+              <span>{formatViewCount(video.views || video.viewCount)}</span>
             </div>
           </div>
           

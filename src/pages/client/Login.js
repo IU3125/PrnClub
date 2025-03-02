@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useForm } from 'react-hook-form';
 import { EyeIcon, EyeSlashIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
+import AdDisplay from '../../components/advertisements/AdDisplay';
 
 const Login = () => {
   const { login } = useAuth();
@@ -12,24 +13,10 @@ const Login = () => {
   const [error, setError] = useState('');
   const [isInactiveAccount, setIsInactiveAccount] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [darkMode, setDarkMode] = useState(() => {
-    // Always start with dark mode, but check if user has a saved preference
-    const savedMode = localStorage.getItem('darkMode');
-    if (savedMode !== null) {
-      return savedMode === 'true';
-    }
-    return true; // Default to dark mode
-  });
-  
-  // Save and apply theme change
-  useEffect(() => {
-    localStorage.setItem('darkMode', darkMode);
-    document.documentElement.classList.toggle('dark', darkMode);
-  }, [darkMode]);
   
   const { register, handleSubmit, formState: { errors } } = useForm();
   
-  // Giriş yapıldıktan sonra yönlendirilecek sayfa
+  // Page to redirect to after login
   const from = location.state?.from?.pathname || '/';
 
   const onSubmit = async (data) => {
@@ -47,8 +34,8 @@ const Login = () => {
         setError('Incorrect email or password.');
       } else if (error.code === 'auth/too-many-requests') {
         setError('Too many failed login attempts. Please try again later.');
-      } else if (error.message && error.message.includes('devre dışı bırakılmıştır')) {
-        // Hesap devre dışı bırakılmış
+      } else if (error.message && error.message.includes('deactivated')) {
+        // Account is deactivated
         setIsInactiveAccount(true);
         setError('Account is inactive. Please contact support.');
       } else {
@@ -159,6 +146,12 @@ const Login = () => {
           </p>
         </div>
       </div>
+      
+      {/* Left Ad - Fixed Position */}
+      <AdDisplay position="left" />
+      
+      {/* Right Ad - Fixed Position */}
+      <AdDisplay position="right" />
     </div>
   );
 };

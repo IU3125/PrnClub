@@ -79,7 +79,7 @@ const AdminLayout = () => {
       await logout();
       navigate('/admin/login');
     } catch (error) {
-      console.error('Çıkış yapılırken hata oluştu:', error);
+      console.error('Error during logout:', error);
     }
   };
 
@@ -91,8 +91,7 @@ const AdminLayout = () => {
     { name: 'Users', path: '/admin/users', icon: UsersIcon, access: isFullAdmin },
     { name: 'Videos', path: '/admin/videos', icon: FilmIcon, access: isFullAdmin },
     { name: 'Comments', path: '/admin/comments', icon: ChatBubbleLeftRightIcon, access: isFullAdmin },
-    { name: 'Category', path: '/admin/categories', icon: Squares2X2Icon, access: isFullAdmin },
-    { name: 'Advertisement', path: '/admin/advertisement', icon: CurrencyDollarIcon, access: true },
+    { name: 'Advertisements', path: '/admin/advertisements', icon: CurrencyDollarIcon, access: true },
     { name: 'Profile', path: '/admin/profile', icon: UserCircleIcon, access: true },
   ];
 
@@ -200,7 +199,7 @@ const AdminLayout = () => {
               }`}
             >
               <ArrowRightOnRectangleIcon className="w-5 h-5 mr-3 flex-shrink-0" />
-              {sidebarOpen && <span className="truncate">Çıkış Yap</span>}
+              {sidebarOpen && <span className="truncate">Logout</span>}
             </button>
           </div>
         </nav>

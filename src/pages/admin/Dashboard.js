@@ -41,12 +41,12 @@ const Dashboard = () => {
   // Admin kullanıcı bilgisi
   const [adminUser, setAdminUser] = useState(null);
 
-  // Zaman aralığı değiştiğinde verileri güncelle
+  // Time range changed, update data
   useEffect(() => {
     fetchGraphData(timeRange);
   }, [timeRange]);
   
-  // Sayfa yüklendiğinde mevcut kullanıcı bilgisini al
+  // Get current user information when the page loads
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(user => {
       if (user) {
@@ -60,21 +60,21 @@ const Dashboard = () => {
   // Grafik verilerini zaman aralığına göre getir
   const fetchGraphData = async (selectedRange) => {
     try {
-      // NOT: Bu fonksiyon, Firebase'den seçilen zaman aralığına göre
-      // grafik verilerini getirecek. Şimdilik boş bırakılıyor.
+      // NOTE: This function will fetch graph data from Firebase based on the selected time range.
+      // Currently left empty.
       
-      // Örnek veri yapısı:
+      // Example data structure:
       // setGraphData({
       //   mobile: [{date: '5', value: 30}, {date: '10', value: 40}, ...],
       //   pc: [{date: '5', value: 50}, {date: '10', value: 25}, ...]
       // });
       
-      console.log(`Grafik verileri ${selectedRange} için getirilecek`);
+      console.log(`Graph data will be fetched for ${selectedRange}`);
       
-      // Şimdilik, zaman aralığı değiştiğinde grafik verilerinin değiştiğini göstermek için
-      // farklı örnek veriler kullanabiliriz (gerçek uygulamada bu kısım Firebase'den veri çekecek)
+      // For now, we can use different sample data when the time range changes
+      // (in the real application, this part will fetch data from Firebase)
     } catch (error) {
-      console.error(`${selectedRange} grafik verileri getirilirken hata oluştu:`, error);
+      console.error(`Error fetching graph data for ${selectedRange}:`, error);
     }
   };
 
@@ -82,12 +82,12 @@ const Dashboard = () => {
     const fetchDashboardData = async () => {
       setLoading(true);
       try {
-        // İstatistikleri getir
+        // Get statistics
         const usersSnapshot = await getDocs(collection(db, 'users'));
         const videosSnapshot = await getDocs(collection(db, 'videos'));
         const commentsSnapshot = await getDocs(collection(db, 'comments'));
         
-        // Toplam görüntülenme sayısını hesapla
+        // Calculate total view count
         let totalViewCount = 0;
         videosSnapshot.docs.forEach(doc => {
           totalViewCount += doc.data().viewCount || 0;
@@ -100,7 +100,7 @@ const Dashboard = () => {
           totalViews: totalViewCount
         });
         
-        // En son eklenen videoları getir
+        // Get recently added videos
         const recentVideosQuery = query(
           collection(db, 'videos'),
           orderBy('createdAt', 'desc'),
@@ -115,7 +115,7 @@ const Dashboard = () => {
         
         setRecentVideos(recentVideosList);
         
-        // En popüler videoları getir
+        // Get most popular videos
         const popularVideosQuery = query(
           collection(db, 'videos'),
           orderBy('viewCount', 'desc'),
@@ -130,11 +130,23 @@ const Dashboard = () => {
         
         setPopularVideos(popularVideosList);
         
-        // NOT: İşletim sistemi, ülke ve kategori istatistikleri için
-        // Firebase'den veri çekme işlemleri burada yapılacak
-        // Şimdilik boş bırakılıyor
+        // Fetch category statistics with view counts
+        const categoriesSnapshot = await getDocs(collection(db, 'categories'));
+        const categoriesList = categoriesSnapshot.docs.map(doc => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            name: data.name,
+            viewCount: data.viewCount || 0,
+            color: data.color || getRandomColor() // Use existing color or generate a random one
+          };
+        });
         
-        // Başlangıçta seçili zaman aralığı için grafik verilerini getir
+        // Sort categories by view count in descending order
+        const sortedCategories = categoriesList.sort((a, b) => b.viewCount - a.viewCount);
+        setCategoryStats(sortedCategories);
+        
+        // Get graph data for the initially selected time range
         fetchGraphData(timeRange);
         
       } catch (error) {
@@ -159,18 +171,37 @@ const Dashboard = () => {
     return `${minutes}:${remainingSeconds < 10 ? '0' : ''}${remainingSeconds}`;
   };
 
-  // Tarih biçimlendirme
+  // Format view count
+  const formatViewCount = (count) => {
+    if (count >= 1000000) {
+      return (count / 1000000).toFixed(1) + 'M';
+    } else if (count >= 1000) {
+      return (count / 1000).toFixed(1) + 'K';
+    } else {
+      return count.toString();
+    }
+  };
+
+  // Format date
   const formatDate = (timestamp) => {
-    if (!timestamp) return '';
+    if (!timestamp) return 'Unknown date';
     
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-    return new Intl.DateTimeFormat('tr-TR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    }).format(date);
+    const now = new Date();
+    const diffTime = Math.abs(now - date);
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays < 1) {
+      return 'Today';
+    } else if (diffDays === 1) {
+      return 'Yesterday';
+    } else if (diffDays < 7) {
+      return `${diffDays} days ago`;
+    } else if (diffDays < 30) {
+      return `${Math.floor(diffDays / 7)} weeks ago`;
+    } else {
+      return `${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()}`;
+    }
   };
 
   // Zaman aralığı değiştiğinde çağrılacak fonksiyon
@@ -191,6 +222,15 @@ const Dashboard = () => {
     'January', 'February', 'March', 'April', 'May', 'June', 
     'July', 'August', 'September', 'October', 'November', 'December'
   ];
+
+  // Helper function to generate random colors for categories that don't have one
+  const getRandomColor = () => {
+    const colors = [
+      '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF',
+      '#FF9F40', '#8AC249', '#EA5545', '#F46A9B', '#EF9B20'
+    ];
+    return colors[Math.floor(Math.random() * colors.length)];
+  };
 
   return (
     <div className={`p-6 ${darkMode ? 'bg-dark-900 text-white' : 'bg-gray-100 text-gray-800'}`}>
@@ -356,7 +396,7 @@ const Dashboard = () => {
         </div>
       </div>
       
-      {/* İşletim Sistemi İstatistikleri */}
+      {/* Operating System Statistics */}
       <div className={`rounded-lg p-6 mb-6 shadow-lg ${darkMode ? 'bg-dark-800' : 'bg-white border border-gray-200'}`}>
         <h2 className={`text-lg font-semibold mb-4 uppercase ${darkMode ? 'text-white' : 'text-gray-900'}`}>Operating System Stats</h2>
         {osStats.length > 0 ? (
@@ -384,15 +424,15 @@ const Dashboard = () => {
           </div>
         ) : (
           <div className="text-center py-8">
-            <p className={darkMode ? 'text-gray-400' : 'text-gray-600'}>İşletim sistemi istatistikleri henüz mevcut değil.</p>
-            <p className={`text-sm mt-2 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>Veriler ana siteden toplanacak.</p>
+            <p className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Operating system statistics are not available yet.</p>
+            <p className={`text-sm mt-2 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>Data will be collected from the main site.</p>
           </div>
         )}
       </div>
       
-      {/* Ülke İstatistikleri ve Kategori Grafikleri */}
+      {/* Country Statistics and Category Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Ülke İstatistikleri */}
+        {/* Country Statistics */}
         <div className={`rounded-lg p-6 shadow-lg ${darkMode ? 'bg-dark-800' : 'bg-white border border-gray-200'}`}>
           <h2 className={`text-lg font-semibold mb-4 uppercase ${darkMode ? 'text-white' : 'text-gray-900'}`}>Country Stats</h2>
           {countryStats.length > 0 ? (
@@ -409,29 +449,41 @@ const Dashboard = () => {
             </div>
           ) : (
             <div className="text-center py-8">
-              <p className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Ülke istatistikleri henüz mevcut değil.</p>
-              <p className={`text-sm mt-2 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>Veriler ana siteden toplanacak.</p>
+              <p className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Country statistics are not available yet.</p>
+              <p className={`text-sm mt-2 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>Data will be collected from the main site.</p>
             </div>
           )}
         </div>
         
-        {/* En Popüler Kategoriler */}
+        {/* Most Popular Categories */}
         <div className={`rounded-lg p-6 shadow-lg ${darkMode ? 'bg-dark-800' : 'bg-white border border-gray-200'}`}>
           <h2 className={`text-lg font-semibold mb-4 uppercase ${darkMode ? 'text-white' : 'text-gray-900'}`}>Most Popular Categories</h2>
           {categoryStats.length > 0 ? (
             <>
               <div className="flex justify-center">
                 <div className="relative w-64 h-64">
-                  {/* Dairesel Grafik */}
+                  {/* Circular Chart */}
                   <svg viewBox="0 0 100 100" className="w-full h-full">
                     <circle cx="50" cy="50" r="40" fill="transparent" stroke={darkMode ? "#2D3748" : "#E2E8F0"} strokeWidth="20" />
                     
-                    {/* Kategori Dilimleri - Firebase'den gelen verilerle doldurulacak */}
+                    {/* Category Slices - Will be filled with data from Firebase */}
                     {categoryStats.map((category, index) => {
-                      // Örnek olarak, her kategorinin eşit paya sahip olduğunu varsayalım
-                      const totalCategories = categoryStats.length;
-                      const dashLength = (2 * Math.PI * 40) / totalCategories;
-                      const dashOffset = -index * dashLength;
+                      // Calculate the proportion of this category's views to total views
+                      const totalViews = categoryStats.reduce((sum, cat) => sum + cat.viewCount, 0);
+                      const proportion = totalViews > 0 ? category.viewCount / totalViews : 1 / categoryStats.length;
+                      
+                      // Calculate the dash length based on the proportion
+                      const circumference = 2 * Math.PI * 40;
+                      const dashLength = circumference * proportion;
+                      
+                      // Calculate the dash offset
+                      let dashOffset = 0;
+                      for (let i = 0; i < index; i++) {
+                        const prevProportion = totalViews > 0 
+                          ? categoryStats[i].viewCount / totalViews 
+                          : 1 / categoryStats.length;
+                        dashOffset -= circumference * prevProportion;
+                      }
                       
                       return (
                         <circle 
@@ -442,8 +494,9 @@ const Dashboard = () => {
                           fill="transparent" 
                           stroke={category.color} 
                           strokeWidth="20" 
-                          strokeDasharray={`${dashLength} ${2 * Math.PI * 40 - dashLength}`} 
+                          strokeDasharray={`${dashLength} ${circumference - dashLength}`} 
                           strokeDashoffset={dashOffset}
+                          transform="rotate(-90 50 50)"
                         />
                       );
                     })}
@@ -451,20 +504,25 @@ const Dashboard = () => {
                 </div>
               </div>
               
-              {/* Kategori Açıklaması */}
+              {/* Category Description */}
               <div className="grid grid-cols-2 gap-2 mt-4">
                 {categoryStats.map((category, index) => (
-                  <div key={index} className="flex items-center">
-                    <div className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: category.color }}></div>
-                    <span className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>{category.name}</span>
+                  <div key={index} className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <div className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: category.color }}></div>
+                      <span className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>{category.name}</span>
+                    </div>
+                    <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                      {category.viewCount.toLocaleString()} views
+                    </span>
                   </div>
                 ))}
               </div>
             </>
           ) : (
             <div className="text-center py-8">
-              <p className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Kategori istatistikleri henüz mevcut değil.</p>
-              <p className={`text-sm mt-2 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>Veriler ana siteden toplanacak.</p>
+              <p className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Category statistics are not available yet.</p>
+              <p className={`text-sm mt-2 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>Data will be collected from the main site.</p>
             </div>
           )}
         </div>

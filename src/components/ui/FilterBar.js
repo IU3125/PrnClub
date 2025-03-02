@@ -21,11 +21,11 @@ const FilterBar = ({
   const [selectedTab, setSelectedTab] = useState(0);
   const navigate = useNavigate();
 
-  // Kategorileri ve pornstarları getir
+  // Fetch categories and pornstars
   useEffect(() => {
     const fetchFilters = async () => {
       try {
-        // Kategorileri getir
+        // Get categories
         const categoriesSnapshot = await getDocs(collection(db, 'categories'));
         const categoriesList = categoriesSnapshot.docs.map(doc => ({
           id: doc.id,
@@ -33,7 +33,7 @@ const FilterBar = ({
         }));
         setCategories(categoriesList);
 
-        // Pornstarları getir
+        // Get pornstars
         const pornstarsSnapshot = await getDocs(collection(db, 'pornstars'));
         const pornstarsList = pornstarsSnapshot.docs.map(doc => ({
           id: doc.id,
@@ -41,35 +41,35 @@ const FilterBar = ({
         }));
         setPornstars(pornstarsList);
       } catch (error) {
-        console.error('Filtreler getirilirken hata oluştu:', error);
+        console.error('Error occurred while fetching filters:', error);
       }
     };
 
     fetchFilters();
   }, []);
 
-  // Video filtrelerini değiştir
+  // Change video filters
   const handleFilterChange = (filter) => {
     setActiveFilter(filter);
   };
 
-  // Kategori değiştir
+  // Change category
   const handleCategoryChange = (category) => {
     setActiveCategory(category);
     navigate(category === 'all' ? '/' : `/?category=${category}`);
   };
 
-  // Pornstar değiştir
+  // Change pornstar
   const handlePornstarChange = (pornstar) => {
     setActivePornstar(pornstar);
     navigate(pornstar === 'all' ? '/' : `/?pornstar=${pornstar}`);
   };
 
   const videoFilters = [
-    { key: 'newest', label: 'En Yeni' },
-    { key: 'popular', label: 'Popüler' },
-    { key: 'trending', label: 'Trend' },
-    { key: 'top-rated', label: 'En Çok Beğenilen' },
+    { key: 'newest', label: 'Newest' },
+    { key: 'popular', label: 'Popular' },
+    { key: 'trending', label: 'Trending' },
+    { key: 'top-rated', label: 'Top Rated' },
   ];
 
   return (
@@ -117,7 +117,7 @@ const FilterBar = ({
           </Tab>
         </Tab.List>
         <Tab.Panels className="mt-2">
-          {/* Video Filtreleri */}
+          {/* Video Filters */}
           <Tab.Panel className="rounded-xl bg-dark-700 p-3">
             <div className="flex flex-wrap gap-2">
               {videoFilters.map((filter) => (
@@ -137,7 +137,7 @@ const FilterBar = ({
             </div>
           </Tab.Panel>
 
-          {/* Kategori Filtreleri */}
+          {/* Category Filters */}
           <Tab.Panel className="rounded-xl bg-dark-700 p-3">
             <div className="flex flex-wrap gap-2">
               <button
@@ -149,7 +149,7 @@ const FilterBar = ({
                     : 'bg-dark-600 text-gray-300 hover:bg-dark-500'
                 )}
               >
-                Tümü
+                All
               </button>
               {categories.map((category) => (
                 <button
@@ -168,7 +168,7 @@ const FilterBar = ({
             </div>
           </Tab.Panel>
 
-          {/* Pornstar Filtreleri */}
+          {/* Pornstar Filters */}
           <Tab.Panel className="rounded-xl bg-dark-700 p-3">
             <div className="flex flex-wrap gap-2">
               <button
@@ -180,7 +180,7 @@ const FilterBar = ({
                     : 'bg-dark-600 text-gray-300 hover:bg-dark-500'
                 )}
               >
-                Tümü
+                All
               </button>
               {pornstars.map((pornstar) => (
                 <button

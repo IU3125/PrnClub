@@ -21,6 +21,7 @@ export function useAuth() {
 // Provider component
 export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
+  const [userData, setUserData] = useState(null);
   const [userRole, setUserRole] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -132,6 +133,23 @@ export function AuthProvider({ children }) {
     return sendPasswordResetEmail(auth, email);
   }
 
+  // Update user data
+  async function updateUserData() {
+    if (currentUser) {
+      try {
+        const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+        if (userDoc.exists()) {
+          const newUserData = userDoc.data();
+          setUserData(newUserData);
+          return newUserData;
+        }
+      } catch (error) {
+        console.error('Error updating user data:', error);
+      }
+    }
+    return null;
+  }
+
   // Monitor user state
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -147,6 +165,7 @@ export function AuthProvider({ children }) {
             if (adminData.status === 'inactive') {
               await signOut(auth);
               setCurrentUser(null);
+              setUserData(null);
               setUserRole(null);
               setLoading(false);
               return;
@@ -164,10 +183,13 @@ export function AuthProvider({ children }) {
               if (userData.status === 'inactive') {
                 await signOut(auth);
                 setCurrentUser(null);
+                setUserData(null);
                 setUserRole(null);
                 setLoading(false);
                 return;
               }
+              
+              setUserData(userData);
             }
             
             setUserRole('user');
@@ -177,10 +199,12 @@ export function AuthProvider({ children }) {
         } catch (error) {
           console.error('Error checking user status:', error);
           setCurrentUser(null);
+          setUserData(null);
           setUserRole(null);
         }
       } else {
         setCurrentUser(null);
+        setUserData(null);
         setUserRole(null);
       }
       
@@ -192,12 +216,14 @@ export function AuthProvider({ children }) {
 
   const value = {
     currentUser,
+    userData,
     userRole,
     register,
     login,
     adminLogin,
     logout,
     resetPassword,
+    updateUserData,
     loading
   };
 

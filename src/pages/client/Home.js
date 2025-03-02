@@ -5,6 +5,7 @@ import { db } from '../../firebase/config';
 import { useAuth } from '../../context/AuthContext';
 import VideoCard from '../../components/video/VideoCard';
 import FilterBar from '../../components/ui/FilterBar';
+import AdDisplay from '../../components/advertisements/AdDisplay';
 import { ArrowPathIcon } from '@heroicons/react/24/outline';
 
 const Home = () => {
@@ -17,13 +18,13 @@ const Home = () => {
   const { currentUser } = useAuth();
   const location = useLocation();
 
-  // URL'den arama parametrelerini al
+  // Get search parameters from URL
   const searchParams = new URLSearchParams(location.search);
   const searchQuery = searchParams.get('search');
   const categoryParam = searchParams.get('category');
   const pornstarParam = searchParams.get('pornstar');
 
-  // URL parametrelerine göre filtreleri ayarla
+  // Set filters according to URL parameters
   useEffect(() => {
     if (categoryParam) {
       setActiveCategory(categoryParam);
@@ -33,30 +34,30 @@ const Home = () => {
     }
   }, [categoryParam, pornstarParam]);
 
-  // Videoları getir
+  // Fetch videos
   const fetchVideos = useCallback(async () => {
     setLoading(true);
     try {
       let videosQuery = collection(db, 'videos');
       let constraints = [];
 
-      // Arama sorgusu varsa
+      // If there's a search query
       if (searchQuery) {
         constraints.push(where('title', '>=', searchQuery));
         constraints.push(where('title', '<=', searchQuery + '\uf8ff'));
       }
 
-      // Kategori filtresi
+      // Category filter
       if (activeCategory !== 'all') {
         constraints.push(where('categories', 'array-contains', activeCategory));
       }
 
-      // Pornstar filtresi
+      // Pornstar filter
       if (activePornstar !== 'all') {
         constraints.push(where('pornstars', 'array-contains', activePornstar));
       }
 
-      // Sıralama
+      // Sorting
       let orderByField;
       switch (activeFilter) {
         case 'popular':
@@ -74,7 +75,7 @@ const Home = () => {
           break;
       }
 
-      // Sorguyu oluştur
+      // Create query
       if (constraints.length > 0) {
         videosQuery = query(
           videosQuery,
@@ -98,18 +99,18 @@ const Home = () => {
 
       setVideos(videosList);
     } catch (error) {
-      console.error('Videolar getirilirken hata oluştu:', error);
+      console.error('Error occurred while fetching videos:', error);
     } finally {
       setLoading(false);
     }
   }, [activeFilter, activeCategory, activePornstar, searchQuery]);
 
-  // Öne çıkan videoları getir (giriş yapmış kullanıcılar için)
+  // Fetch featured videos (for logged-in users)
   const fetchFeaturedVideos = useCallback(async () => {
     if (!currentUser) return;
 
     try {
-      // Kullanıcının öne çıkan videolarını getir
+      // Get user's featured videos
       const userDocRef = doc(db, 'users', currentUser.uid);
       const userDocSnapshot = await getDoc(userDocRef);
       const userData = userDocSnapshot.data();
@@ -117,7 +118,7 @@ const Home = () => {
       if (userData && userData.featured && userData.featured.length > 0) {
         const featuredIds = userData.featured;
         
-        // Öne çıkan videoları getir
+        // Get featured videos
         const featuredVideosData = [];
         
         for (const videoId of featuredIds) {
@@ -134,11 +135,11 @@ const Home = () => {
         setFeaturedVideos(featuredVideosData);
       }
     } catch (error) {
-      console.error('Öne çıkan videolar getirilirken hata oluştu:', error);
+      console.error('Error occurred while fetching featured videos:', error);
     }
   }, [currentUser]);
 
-  // Videoları getir
+  // Fetch videos
   useEffect(() => {
     fetchVideos();
     if (currentUser) {
@@ -146,7 +147,7 @@ const Home = () => {
     }
   }, [fetchVideos, fetchFeaturedVideos, currentUser]);
 
-  // Videoları yenile
+  // Refresh videos
   const handleRefresh = () => {
     fetchVideos();
     if (currentUser) {
@@ -155,9 +156,14 @@ const Home = () => {
   };
 
   return (
-    <div>
-      {/* Filtre çubuğu */}
-      <FilterBar
+    <div className="container mx-auto px-4 py-8">
+      {/* Header Ad */}
+      <div className="mb-6">
+        <AdDisplay position="header" />
+      </div>
+      
+      {/* Filter Bar */}
+      <FilterBar 
         activeFilter={activeFilter}
         setActiveFilter={setActiveFilter}
         activeCategory={activeCategory}
@@ -165,63 +171,89 @@ const Home = () => {
         activePornstar={activePornstar}
         setActivePornstar={setActivePornstar}
       />
-
-      {/* Arama sonuçları */}
-      {searchQuery && (
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold text-white mb-4">
-            "{searchQuery}" için arama sonuçları
-          </h2>
-        </div>
-      )}
-
-      {/* Öne çıkan videolar */}
-      {currentUser && featuredVideos.length > 0 && !searchQuery && (
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold text-white mb-4">Öne Çıkanlar</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {featuredVideos.map(video => (
-              <VideoCard key={video.id} video={video} />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Video listesi */}
-      <div className="mb-4 flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-white">
-          {searchQuery ? 'Sonuçlar' : 'Videolar'}
-        </h2>
-        <button
-          onClick={handleRefresh}
-          className="flex items-center text-gray-400 hover:text-white"
-          title="Yenile"
-        >
-          <ArrowPathIcon className="w-5 h-5 mr-1" />
-          <span className="text-sm">Yenile</span>
-        </button>
-      </div>
-
+      
       {loading ? (
         <div className="flex justify-center items-center h-64">
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-500"></div>
         </div>
-      ) : videos.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {videos.map(video => (
-            <VideoCard key={video.id} video={video} />
-          ))}
-        </div>
       ) : (
-        <div className="bg-dark-700 rounded-lg p-8 text-center">
-          <p className="text-gray-400 mb-4">Hiç video bulunamadı.</p>
-          {(activeCategory !== 'all' || activePornstar !== 'all' || searchQuery) && (
-            <p className="text-gray-500">
-              Farklı filtreler deneyebilir veya aramanızı değiştirebilirsiniz.
-            </p>
+        <>
+          {/* Featured Videos */}
+          {featuredVideos.length > 0 && !searchQuery && activeCategory === 'all' && activePornstar === 'all' && (
+            <div className="mb-8">
+              <h2 className="text-xl font-bold text-white mb-4">Featured Videos</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {featuredVideos.map(video => (
+                  <VideoCard key={video.id} video={video} />
+                ))}
+              </div>
+            </div>
           )}
-        </div>
+          
+          {/* Main Content */}
+          <div className="flex flex-col md:flex-row gap-4">
+            {/* Video Grid */}
+            <div className="flex-1">
+              <h2 className="text-xl font-bold text-white mb-4">
+                {searchQuery 
+                  ? `Search Results for "${searchQuery}"` 
+                  : activeCategory !== 'all' 
+                    ? `${activeCategory} Videos` 
+                    : activePornstar !== 'all'
+                      ? `${activePornstar} Videos`
+                      : 'All Videos'}
+              </h2>
+              
+              {videos.length === 0 ? (
+                <div className="bg-dark-700 rounded-lg p-8 text-center">
+                  <p className="text-gray-400 mb-4">No videos found.</p>
+                  <button 
+                    onClick={() => {
+                      setActiveCategory('all');
+                      setActivePornstar('all');
+                      setActiveFilter('newest');
+                      handleRefresh();
+                    }}
+                    className="btn btn-primary flex items-center mx-auto"
+                  >
+                    <ArrowPathIcon className="h-5 w-5 mr-2" />
+                    Reset Filters
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {videos.map(video => (
+                    <VideoCard key={video.id} video={video} />
+                  ))}
+                </div>
+              )}
+              
+              {/* Video Before Ad */}
+              <div className="my-8">
+                <AdDisplay position="video-before" />
+              </div>
+            </div>
+            
+            {/* Sidebar Ad */}
+            <div className="hidden md:block md:w-64">
+              <div className="sticky top-4">
+                <AdDisplay position="sidebar" />
+              </div>
+            </div>
+          </div>
+          
+          {/* Footer Ad */}
+          <div className="mt-8">
+            <AdDisplay position="footer" />
+          </div>
+        </>
       )}
+      
+      {/* Left Ad - Fixed Position */}
+      <AdDisplay position="left" />
+      
+      {/* Right Ad - Fixed Position */}
+      <AdDisplay position="right" />
     </div>
   );
 };

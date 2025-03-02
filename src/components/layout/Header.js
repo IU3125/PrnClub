@@ -1,22 +1,24 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { useTheme } from '../../context/ThemeContext';
 import { 
   MagnifyingGlassIcon, 
-  UserCircleIcon, 
   ArrowRightOnRectangleIcon,
   Bars3Icon,
-  XMarkIcon
+  XMarkIcon,
+  HeartIcon
 } from '@heroicons/react/24/outline';
-import { MoonIcon, SunIcon } from '@heroicons/react/24/solid';
+import { HeartIcon as HeartIconSolid } from '@heroicons/react/24/solid';
+import Logo from './Logo';
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const { currentUser, logout } = useAuth();
-  const { darkMode, toggleDarkMode } = useTheme();
+  const { currentUser, userData, logout } = useAuth();
   const navigate = useNavigate();
+  
+  // Featured count - now using userData instead of currentUser
+  const featuredCount = userData?.featured?.length || 0;
 
   const handleSearch = (e) => {
     e.preventDefault();
@@ -31,19 +33,16 @@ const Header = () => {
       await logout();
       navigate('/');
     } catch (error) {
-      console.error('Çıkış yapılırken hata oluştu:', error);
+      console.error('Error occurred during logout:', error);
     }
   };
 
   return (
-    <header className={`${darkMode ? 'bg-dark-700' : 'bg-white'} shadow-md`}>
+    <header className="bg-dark-700 shadow-md">
       <div className="container mx-auto px-4 py-3">
         <div className="flex items-center justify-between">
           {/* Logo */}
-          <Link to="/" className="flex items-center">
-            <span className="text-2xl font-bold text-primary-500">PRN</span>
-            <span className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Club</span>
-          </Link>
+          <Logo />
 
           {/* Search Bar - Desktop */}
           <div className="hidden md:flex flex-1 max-w-xl mx-4">
@@ -51,20 +50,14 @@ const Header = () => {
               <div className="relative">
                 <input
                   type="text"
-                  placeholder="Video ara..."
-                  className={`w-full py-2 pl-4 pr-10 ${
-                    darkMode 
-                      ? 'bg-dark-800 border-dark-600 text-white' 
-                      : 'bg-gray-100 border-gray-300 text-gray-800'
-                  } border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500`}
+                  placeholder="Search videos..."
+                  className="w-full py-2 pl-4 pr-10 bg-dark-800 border-dark-600 text-white border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
                 <button
                   type="submit"
-                  className={`absolute right-0 top-0 h-full px-3 ${
-                    darkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-800'
-                  }`}
+                  className="absolute right-0 top-0 h-full px-3 text-gray-400 hover:text-white"
                 >
                   <MagnifyingGlassIcon className="w-5 h-5" />
                 </button>
@@ -74,31 +67,27 @@ const Header = () => {
 
           {/* User Menu - Desktop */}
           <div className="hidden md:flex items-center space-x-4">
-            {/* Theme Toggle Button */}
-            <button 
-              onClick={toggleDarkMode}
-              className={`p-2 rounded-full ${
-                darkMode 
-                  ? 'text-gray-300 hover:text-white hover:bg-dark-600' 
-                  : 'text-gray-600 hover:text-gray-800 hover:bg-gray-200'
-              }`}
-            >
-              {darkMode ? (
-                <SunIcon className="w-5 h-5" />
-              ) : (
-                <MoonIcon className="w-5 h-5" />
-              )}
-            </button>
-            
             {currentUser ? (
               <>
-                <span className={darkMode ? 'text-white' : 'text-gray-800'}>Merhaba, {currentUser.displayName || 'Kullanıcı'}</span>
-                <Link to="/profile" className={darkMode ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-800'}>
-                  <UserCircleIcon className="w-6 h-6" />
+                {/* Hello User text */}
+                <div className="flex items-center text-white">
+                  <span className="mr-1">Hello</span>
+                  <Link to="/profile" className="text-white hover:text-primary-400 ml-1">
+                    {currentUser.displayName || 'User'}
+                  </Link>
+                </div>
+                
+                {/* Favorites count with heart icon */}
+                <Link to="/favorites" className="flex items-center text-white hover:text-primary-400">
+                  <span className="mr-1">Favorites</span>
+                  <span className="mx-1">{featuredCount}</span>
+                  <HeartIconSolid className="w-5 h-5 text-red-500" />
                 </Link>
+                
+                {/* Logout button */}
                 <button
                   onClick={handleLogout}
-                  className={darkMode ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-800'}
+                  className="text-gray-300 hover:text-white"
                 >
                   <ArrowRightOnRectangleIcon className="w-6 h-6" />
                 </button>
@@ -106,10 +95,10 @@ const Header = () => {
             ) : (
               <>
                 <Link to="/login" className="btn btn-primary">
-                  Giriş Yap
+                  Sign In
                 </Link>
-                <Link to="/register" className={`btn ${darkMode ? 'btn-dark' : 'btn-light'}`}>
-                  Kayıt Ol
+                <Link to="/register" className="btn btn-dark">
+                  Register
                 </Link>
               </>
             )}
@@ -117,27 +106,9 @@ const Header = () => {
 
           {/* Mobile Menu Button */}
           <div className="md:hidden flex items-center space-x-2">
-            {/* Theme Toggle Button - Mobile */}
-            <button 
-              onClick={toggleDarkMode}
-              className={`p-2 rounded-full ${
-                darkMode 
-                  ? 'text-gray-300 hover:text-white' 
-                  : 'text-gray-600 hover:text-gray-800'
-              }`}
-            >
-              {darkMode ? (
-                <SunIcon className="w-5 h-5" />
-              ) : (
-                <MoonIcon className="w-5 h-5" />
-              )}
-            </button>
-            
             <button
               onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className={`${
-                darkMode ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-800'
-              } focus:outline-none`}
+              className="text-gray-300 hover:text-white focus:outline-none"
             >
               {isMenuOpen ? (
                 <XMarkIcon className="w-6 h-6" />
@@ -150,26 +121,20 @@ const Header = () => {
 
         {/* Mobile Menu */}
         {isMenuOpen && (
-          <div className={`md:hidden mt-4 ${darkMode ? 'bg-dark-700' : 'bg-white'} rounded-md shadow-lg p-4`}>
+          <div className="md:hidden mt-4 bg-dark-700 rounded-md shadow-lg p-4">
             {/* Search Bar - Mobile */}
             <form onSubmit={handleSearch} className="mb-4">
               <div className="relative">
                 <input
                   type="text"
-                  placeholder="Video ara..."
-                  className={`w-full py-2 pl-4 pr-10 ${
-                    darkMode 
-                      ? 'bg-dark-800 border-dark-600 text-white' 
-                      : 'bg-gray-100 border-gray-300 text-gray-800'
-                  } border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500`}
+                  placeholder="Search videos..."
+                  className="w-full py-2 pl-4 pr-10 bg-dark-800 border-dark-600 text-white border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
                 <button
                   type="submit"
-                  className={`absolute right-0 top-0 h-full px-3 ${
-                    darkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-800'
-                  }`}
+                  className="absolute right-0 top-0 h-full px-3 text-gray-400 hover:text-white"
                 >
                   <MagnifyingGlassIcon className="w-5 h-5" />
                 </button>
@@ -180,32 +145,42 @@ const Header = () => {
             <div className="flex flex-col space-y-2">
               {currentUser ? (
                 <>
-                  <span className={darkMode ? 'text-white' : 'text-gray-800'}>Merhaba, {currentUser.displayName || 'Kullanıcı'}</span>
+                  {/* Hello User text */}
+                  <div className="flex items-center text-white py-2">
+                    <span className="mr-1">Hello</span>
+                    <span className="font-medium ml-1">{currentUser.displayName || 'User'}</span>
+                  </div>
+                  
+                  {/* Featured link */}
                   <Link
-                    to="/profile"
-                    className={`flex items-center py-2 px-4 rounded-md ${
-                      darkMode 
-                        ? 'text-gray-300 hover:bg-dark-600' 
-                        : 'text-gray-700 hover:bg-gray-200'
-                    }`}
+                    to="/favorites"
+                    className="flex items-center py-2 px-4 rounded-md text-white hover:bg-dark-600"
                     onClick={() => setIsMenuOpen(false)}
                   >
-                    <UserCircleIcon className="w-5 h-5 mr-2" />
-                    Profil
+                    <span className="mr-1">Favorites</span>
+                    <span className="mx-1">{featuredCount}</span>
+                    <HeartIconSolid className="w-5 h-5 text-red-500" />
                   </Link>
+                  
+                  {/* Profile link */}
+                  <Link
+                    to="/profile"
+                    className="flex items-center py-2 px-4 rounded-md text-white hover:bg-dark-600"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    My Profile
+                  </Link>
+                  
+                  {/* Logout button */}
                   <button
                     onClick={() => {
                       handleLogout();
                       setIsMenuOpen(false);
                     }}
-                    className={`flex items-center py-2 px-4 rounded-md ${
-                      darkMode 
-                        ? 'text-gray-300 hover:bg-dark-600' 
-                        : 'text-gray-700 hover:bg-gray-200'
-                    }`}
+                    className="flex items-center py-2 px-4 rounded-md text-gray-300 hover:bg-dark-600"
                   >
                     <ArrowRightOnRectangleIcon className="w-5 h-5 mr-2" />
-                    Çıkış Yap
+                    Sign Out
                   </button>
                 </>
               ) : (
@@ -215,18 +190,14 @@ const Header = () => {
                     className="py-2 px-4 bg-primary-600 hover:bg-primary-700 text-white rounded-md"
                     onClick={() => setIsMenuOpen(false)}
                   >
-                    Giriş Yap
+                    Sign In
                   </Link>
                   <Link
                     to="/register"
-                    className={`py-2 px-4 rounded-md ${
-                      darkMode 
-                        ? 'bg-dark-700 hover:bg-dark-600 text-white border border-dark-600' 
-                        : 'bg-gray-200 hover:bg-gray-300 text-gray-800 border border-gray-300'
-                    }`}
+                    className="py-2 px-4 bg-dark-700 hover:bg-dark-600 text-white border border-dark-600 rounded-md"
                     onClick={() => setIsMenuOpen(false)}
                   >
-                    Kayıt Ol
+                    Register
                   </Link>
                 </>
               )}

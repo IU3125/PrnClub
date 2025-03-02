@@ -11,8 +11,11 @@ import {
   KeyIcon, 
   TrashIcon,
   ExclamationTriangleIcon,
-  XMarkIcon
+  XMarkIcon,
+  HeartIcon
 } from '@heroicons/react/24/outline';
+import { HeartIcon as HeartIconSolid } from '@heroicons/react/24/solid';
+import AdDisplay from '../../components/advertisements/AdDisplay';
 
 const Profile = () => {
   const { currentUser, logout, resetPassword } = useAuth();
@@ -30,7 +33,7 @@ const Profile = () => {
   const { register, handleSubmit, formState: { errors }, setValue, watch } = useForm();
   const watchPassword = watch("password", "");
 
-  // Kullanıcı verilerini getir
+  // Fetch user data
   useEffect(() => {
     const fetchUserData = async () => {
       setLoading(true);
@@ -41,8 +44,8 @@ const Profile = () => {
           setValue('displayName', userDoc.data().displayName || '');
         }
       } catch (error) {
-        console.error('Kullanıcı verileri getirilirken hata oluştu:', error);
-        setError('Kullanıcı verileri getirilirken bir hata oluştu.');
+        console.error('Error occurred while fetching user data:', error);
+        setError('An error occurred while fetching user data.');
       } finally {
         setLoading(false);
       }
@@ -51,7 +54,7 @@ const Profile = () => {
     fetchUserData();
   }, [currentUser, setValue]);
 
-  // Öne çıkan videoları getir
+  // Fetch featured videos
   useEffect(() => {
     const fetchFeaturedVideos = async () => {
       if (!userData || !userData.featured || userData.featured.length === 0) {
@@ -74,14 +77,14 @@ const Profile = () => {
         
         setFeaturedVideos(featuredVideosData);
       } catch (error) {
-        console.error('Öne çıkan videolar getirilirken hata oluştu:', error);
+        console.error('Error occurred while fetching featured videos:', error);
       }
     };
 
     fetchFeaturedVideos();
   }, [userData]);
 
-  // Profil güncelleme
+  // Update profile
   const handleUpdateProfile = async (data) => {
     setError('');
     setSuccess('');
@@ -91,34 +94,34 @@ const Profile = () => {
         displayName: data.displayName
       });
       
-      setSuccess('Profil başarıyla güncellendi.');
+      setSuccess('Profile updated successfully.');
     } catch (error) {
-      console.error('Profil güncellenirken hata oluştu:', error);
-      setError('Profil güncellenirken bir hata oluştu.');
+      console.error('Error occurred while updating profile:', error);
+      setError('An error occurred while updating profile.');
     }
   };
 
-  // Şifre güncelleme
+  // Update password
   const handleUpdatePassword = async (data) => {
     setError('');
     setSuccess('');
     
     try {
-      // Firebase Authentication ile şifre güncelleme
+      // Update password with Firebase Authentication
       await currentUser.updatePassword(data.password);
       
-      setSuccess('Şifreniz başarıyla güncellendi.');
+      setSuccess('Your password has been updated successfully.');
       
-      // Form alanlarını temizle
+      // Clear form fields
       setValue('password', '');
       setValue('confirmPassword', '');
     } catch (error) {
-      console.error('Şifre güncellenirken hata oluştu:', error);
-      setError('Şifre güncellenirken bir hata oluştu. Lütfen yakın zamanda giriş yaptığınızdan emin olun.');
+      console.error('Error occurred while updating password:', error);
+      setError('An error occurred while updating password. Please make sure you have logged in recently.');
     }
   };
 
-  // Şifre sıfırlama e-postası gönder
+  // Send password reset email
   const handleResetPassword = async () => {
     setError('');
     setSuccess('');
@@ -127,70 +130,70 @@ const Profile = () => {
     try {
       await resetPassword(currentUser.email);
       setResetSent(true);
-      setSuccess('Şifre sıfırlama bağlantısı e-posta adresinize gönderildi.');
+      setSuccess('Password reset link has been sent to your email address.');
     } catch (error) {
-      console.error('Şifre sıfırlama e-postası gönderilirken hata oluştu:', error);
-      setError('Şifre sıfırlama e-postası gönderilirken bir hata oluştu.');
+      console.error('Error occurred while sending password reset email:', error);
+      setError('An error occurred while sending password reset email.');
     }
   };
 
-  // Hesabı devre dışı bırak
+  // Deactivate account
   const handleDeactivateAccount = async () => {
     if (deleteConfirmText !== currentUser.email) {
-      setError('Hesabınızı devre dışı bırakmak için e-posta adresinizi doğru girmelisiniz.');
+      setError('You must enter your email address correctly to deactivate your account.');
       return;
     }
     
     try {
-      // Kullanıcı durumunu inactive olarak güncelle
+      // Update user status to inactive
       await updateDoc(doc(db, 'users', currentUser.uid), {
         status: 'inactive',
         deactivatedAt: new Date()
       });
       
-      // Kullanıcıyı çıkış yaptır
+      // Log out the user
       await logout();
       
-      // Ana sayfaya yönlendir
+      // Redirect to home page
       navigate('/');
     } catch (error) {
-      console.error('Hesap devre dışı bırakılırken hata oluştu:', error);
-      setError('Hesabınız devre dışı bırakılırken bir hata oluştu.');
+      console.error('Error occurred while deactivating account:', error);
+      setError('An error occurred while deactivating your account.');
       setShowDeleteModal(false);
     }
   };
 
-  // Çıkış yap
+  // Log out
   const handleLogout = async () => {
     try {
       await logout();
       navigate('/');
     } catch (error) {
-      console.error('Çıkış yapılırken hata oluştu:', error);
-      setError('Çıkış yapılırken bir hata oluştu.');
+      console.error('Error occurred during logout:', error);
+      setError('An error occurred during logout.');
     }
   };
 
-  // Videoyu favorilerden kaldır
+  // Remove video from favorites
   const handleRemoveFromFeatured = async (videoId) => {
     try {
       await updateDoc(doc(db, 'users', currentUser.uid), {
         featured: arrayRemove(videoId)
       });
       
-      // Kullanıcı verilerini güncelle
+      // Update user data
       const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
       if (userDoc.exists()) {
         setUserData(userDoc.data());
       }
       
-      // Videoyu listeden kaldır
+      // Remove video from list
       setFeaturedVideos(featuredVideos.filter(video => video.id !== videoId));
       
-      setSuccess('Video favorilerden kaldırıldı.');
+      setSuccess('Video removed from favorites.');
     } catch (error) {
-      console.error('Video favorilerden kaldırılırken hata oluştu:', error);
-      setError('Video favorilerden kaldırılırken bir hata oluştu.');
+      console.error('Error occurred while removing video from favorites:', error);
+      setError('An error occurred while removing video from favorites.');
     }
   };
 
@@ -203,9 +206,14 @@ const Profile = () => {
   }
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <h1 className="text-2xl font-bold text-white mb-6">Profil</h1>
+    <div className="container mx-auto px-4 py-8">
+      {/* Header */}
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-white">Profile</h1>
+        <p className="text-gray-400 mt-2">Manage your account settings</p>
+      </div>
       
+      {/* Error and Success Messages */}
       {error && (
         <div className="bg-red-500 bg-opacity-20 border border-red-500 text-red-500 px-4 py-3 rounded mb-4">
           {error}
@@ -218,115 +226,80 @@ const Profile = () => {
         </div>
       )}
       
-      <div className="bg-dark-700 rounded-lg overflow-hidden">
-        {/* Sekmeler */}
-        <div className="flex border-b border-dark-600">
-          <button
-            className={`px-4 py-3 font-medium ${
-              activeTab === 'profile'
-                ? 'text-primary-500 border-b-2 border-primary-500'
-                : 'text-gray-400 hover:text-white'
-            }`}
-            onClick={() => setActiveTab('profile')}
-          >
-            Profil
-          </button>
-          <button
-            className={`px-4 py-3 font-medium ${
-              activeTab === 'security'
-                ? 'text-primary-500 border-b-2 border-primary-500'
-                : 'text-gray-400 hover:text-white'
-            }`}
-            onClick={() => setActiveTab('security')}
-          >
-            Güvenlik
-          </button>
-          <button
-            className={`px-4 py-3 font-medium ${
-              activeTab === 'featured'
-                ? 'text-primary-500 border-b-2 border-primary-500'
-                : 'text-gray-400 hover:text-white'
-            }`}
-            onClick={() => setActiveTab('featured')}
-          >
-            Favoriler
-          </button>
+      {/* Profile Settings */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        {/* Left Column - User Info */}
+        <div className="md:col-span-1">
+          <div className="bg-dark-700 rounded-lg p-6">
+            <div className="flex flex-col items-center">
+              <div className="bg-dark-600 rounded-full p-4 mb-4">
+                <UserCircleIcon className="w-16 h-16 text-gray-300" />
+              </div>
+              <h2 className="text-xl font-semibold text-white">{userData?.displayName || 'User'}</h2>
+              <p className="text-gray-400 mt-1">{currentUser.email}</p>
+              
+              <div className="mt-4 flex items-center">
+                <HeartIconSolid className="w-5 h-5 text-red-500 mr-2" />
+                <span className="text-white">{featuredVideos.length} Favorite Videos</span>
+              </div>
+              
+              <button
+                onClick={handleLogout}
+                className="mt-6 w-full py-2 px-4 bg-dark-600 hover:bg-dark-500 text-white rounded-md"
+              >
+                Sign Out
+              </button>
+            </div>
+          </div>
         </div>
         
-        {/* Profil Sekmesi */}
-        {activeTab === 'profile' && (
-          <div className="p-6">
-            <div className="flex items-center mb-6">
-              <UserCircleIcon className="w-16 h-16 text-gray-400 mr-4" />
-              <div>
-                <h2 className="text-xl font-semibold text-white">
-                  {userData?.displayName || 'Kullanıcı'}
-                </h2>
-                <p className="text-gray-400">{currentUser.email}</p>
-              </div>
-            </div>
+        {/* Right Column - Settings Forms */}
+        <div className="md:col-span-2">
+          {/* Update Profile Form */}
+          <div className="bg-dark-700 rounded-lg p-6 mb-6">
+            <h3 className="text-xl font-semibold text-white mb-4">Update Profile</h3>
             
             <form onSubmit={handleSubmit(handleUpdateProfile)}>
               <div className="mb-4">
-                <label htmlFor="displayName" className="block text-gray-300 mb-2">
-                  Kullanıcı Adı
-                </label>
+                <label htmlFor="displayName" className="block text-gray-300 mb-2">Display Name</label>
                 <input
                   id="displayName"
                   type="text"
                   className="w-full py-2 px-3 bg-dark-800 border border-dark-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-white"
-                  {...register('displayName', { 
-                    required: 'Kullanıcı adı gereklidir',
-                    minLength: {
-                      value: 3,
-                      message: 'Kullanıcı adı en az 3 karakter olmalıdır'
-                    }
-                  })}
+                  placeholder="Your display name"
+                  {...register('displayName', { required: 'Display name is required' })}
                 />
                 {errors.displayName && (
                   <p className="text-red-500 text-sm mt-1">{errors.displayName.message}</p>
                 )}
               </div>
               
-              <div className="flex flex-col md:flex-row md:items-center md:justify-between">
-                <button
-                  type="submit"
-                  className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-md mb-4 md:mb-0"
-                >
-                  Profili Güncelle
-                </button>
-                
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  className="bg-dark-600 hover:bg-dark-500 text-white px-4 py-2 rounded-md"
-                >
-                  Çıkış Yap
-                </button>
-              </div>
+              <button
+                type="submit"
+                className="py-2 px-4 bg-primary-600 hover:bg-primary-700 text-white rounded-md"
+              >
+                Update Profile
+              </button>
             </form>
           </div>
-        )}
-        
-        {/* Güvenlik Sekmesi */}
-        {activeTab === 'security' && (
-          <div className="p-6">
-            <h2 className="text-xl font-semibold text-white mb-4">Şifre Değiştir</h2>
+          
+          {/* Update Password Form */}
+          <div className="bg-dark-700 rounded-lg p-6 mb-6">
+            <h3 className="text-xl font-semibold text-white mb-4">Change Password</h3>
             
-            <form onSubmit={handleSubmit(handleUpdatePassword)} className="mb-8">
+            <form onSubmit={handleSubmit(handleUpdatePassword)}>
               <div className="mb-4">
-                <label htmlFor="password" className="block text-gray-300 mb-2">
-                  Yeni Şifre
-                </label>
+                <label htmlFor="password" className="block text-gray-300 mb-2">New Password</label>
                 <input
                   id="password"
                   type="password"
                   className="w-full py-2 px-3 bg-dark-800 border border-dark-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-white"
+                  placeholder="New password"
                   {...register('password', { 
-                    required: 'Şifre gereklidir',
+                    required: 'Password is required',
                     minLength: {
                       value: 6,
-                      message: 'Şifre en az 6 karakter olmalıdır'
+                      message: 'Password must be at least 6 characters'
                     }
                   })}
                 />
@@ -336,16 +309,15 @@ const Profile = () => {
               </div>
               
               <div className="mb-4">
-                <label htmlFor="confirmPassword" className="block text-gray-300 mb-2">
-                  Şifreyi Onayla
-                </label>
+                <label htmlFor="confirmPassword" className="block text-gray-300 mb-2">Confirm Password</label>
                 <input
                   id="confirmPassword"
                   type="password"
                   className="w-full py-2 px-3 bg-dark-800 border border-dark-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-white"
+                  placeholder="Confirm new password"
                   {...register('confirmPassword', { 
-                    required: 'Şifre onayı gereklidir',
-                    validate: value => value === watchPassword || 'Şifreler eşleşmiyor'
+                    required: 'Please confirm your password',
+                    validate: value => value === watchPassword || 'Passwords do not match'
                   })}
                 />
                 {errors.confirmPassword && (
@@ -353,121 +325,105 @@ const Profile = () => {
                 )}
               </div>
               
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center">
                 <button
                   type="submit"
-                  className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-md"
+                  className="py-2 px-4 bg-primary-600 hover:bg-primary-700 text-white rounded-md mb-2 sm:mb-0 sm:mr-2"
                 >
-                  Şifreyi Güncelle
+                  Update Password
                 </button>
                 
                 <button
                   type="button"
                   onClick={handleResetPassword}
-                  className="text-primary-500 hover:text-primary-400"
+                  className="py-2 px-4 bg-dark-600 hover:bg-dark-500 text-white rounded-md"
                 >
-                  Şifremi Unuttum
+                  Send Reset Email
                 </button>
               </div>
-            </form>
-            
-            <div className="border-t border-dark-600 pt-6">
-              <h2 className="text-xl font-semibold text-white mb-4">Hesabı Devre Dışı Bırak</h2>
-              <p className="text-gray-400 mb-4">
-                Hesabınızı devre dışı bıraktığınızda, tüm verileriniz korunacak ancak hesabınıza erişiminiz olmayacaktır. 
-                Daha sonra tekrar giriş yapmak isterseniz, yönetici ile iletişime geçmeniz gerekecektir.
-              </p>
               
-              <button
-                type="button"
-                onClick={() => setShowDeleteModal(true)}
-                className="flex items-center bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md"
-              >
-                <TrashIcon className="w-5 h-5 mr-2" />
-                Hesabımı Devre Dışı Bırak
-              </button>
-            </div>
+              {resetSent && (
+                <p className="text-green-500 text-sm mt-2">
+                  Password reset email sent. Please check your inbox.
+                </p>
+              )}
+            </form>
           </div>
-        )}
-        
-        {/* Favoriler Sekmesi */}
-        {activeTab === 'featured' && (
-          <div className="p-6">
-            <h2 className="text-xl font-semibold text-white mb-4">Favori Videolarım</h2>
+          
+          {/* Deactivate Account */}
+          <div className="bg-dark-700 rounded-lg p-6">
+            <h3 className="text-xl font-semibold text-white mb-4">Deactivate Account</h3>
+            <p className="text-gray-400 mb-4">
+              Once you deactivate your account, all your data will be permanently removed.
+              This action cannot be undone.
+            </p>
             
-            {featuredVideos.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {featuredVideos.map(video => (
-                  <div key={video.id} className="relative">
-                    <VideoCard video={video} />
-                    <button
-                      onClick={() => handleRemoveFromFeatured(video.id)}
-                      className="absolute top-2 right-2 bg-red-600 hover:bg-red-700 text-white p-1 rounded-full"
-                      title="Favorilerden Kaldır"
-                    >
-                      <TrashIcon className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-gray-400">Henüz favori videonuz bulunmamaktadır.</p>
-            )}
+            <button
+              onClick={() => setShowDeleteModal(true)}
+              className="py-2 px-4 bg-red-600 hover:bg-red-700 text-white rounded-md flex items-center"
+            >
+              <TrashIcon className="w-5 h-5 mr-2" />
+              Deactivate Account
+            </button>
           </div>
-        )}
+        </div>
       </div>
       
-      {/* Hesap Silme Modal */}
+      {/* Delete Account Modal */}
       {showDeleteModal && (
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
           <div className="bg-dark-700 rounded-lg max-w-md w-full p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-bold text-white">Hesabı Devre Dışı Bırak</h3>
-              <button
-                onClick={() => setShowDeleteModal(false)}
-                className="text-gray-400 hover:text-white"
-              >
-                <XMarkIcon className="w-6 h-6" />
-              </button>
+            <div className="flex items-start mb-4">
+              <div className="bg-red-500 bg-opacity-20 p-2 rounded-full mr-3">
+                <ExclamationTriangleIcon className="w-6 h-6 text-red-500" />
+              </div>
+              <div>
+                <h3 className="text-xl font-semibold text-white">Deactivate Account</h3>
+                <p className="text-gray-400 mt-1">
+                  This action cannot be undone. All your data will be permanently deleted.
+                </p>
+              </div>
             </div>
             
             <div className="mb-4">
-              <div className="flex items-center bg-red-500 bg-opacity-20 text-red-500 p-3 rounded-md mb-4">
-                <ExclamationTriangleIcon className="w-6 h-6 mr-2 flex-shrink-0" />
-                <p>Bu işlem geri alınamaz. Hesabınız devre dışı bırakıldıktan sonra, tekrar erişim için yönetici ile iletişime geçmeniz gerekecektir.</p>
-              </div>
-              
-              <p className="text-gray-300 mb-4">
-                Hesabınızı devre dışı bırakmak istediğinizi onaylamak için, lütfen e-posta adresinizi aşağıya yazın:
-              </p>
-              
+              <label className="block text-gray-300 mb-2">
+                Please type your email address to confirm: <span className="text-white">{currentUser.email}</span>
+              </label>
               <input
-                type="email"
-                className="w-full py-2 px-3 bg-dark-800 border border-dark-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-white mb-4"
-                placeholder={currentUser.email}
+                type="text"
+                className="w-full py-2 px-3 bg-dark-800 border border-dark-600 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 text-white"
                 value={deleteConfirmText}
                 onChange={(e) => setDeleteConfirmText(e.target.value)}
+                placeholder="Enter your email"
               />
             </div>
             
             <div className="flex justify-end space-x-3">
               <button
-                onClick={() => setShowDeleteModal(false)}
-                className="bg-dark-600 hover:bg-dark-500 text-white px-4 py-2 rounded-md"
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  setDeleteConfirmText('');
+                }}
+                className="py-2 px-4 bg-dark-600 hover:bg-dark-500 text-white rounded-md"
               >
-                İptal
+                Cancel
               </button>
               <button
                 onClick={handleDeactivateAccount}
-                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md"
-                disabled={deleteConfirmText !== currentUser.email}
+                className="py-2 px-4 bg-red-600 hover:bg-red-700 text-white rounded-md"
               >
-                Hesabımı Devre Dışı Bırak
+                Deactivate
               </button>
             </div>
           </div>
         </div>
       )}
+      
+      {/* Left Ad - Fixed Position */}
+      <AdDisplay position="left" />
+      
+      {/* Right Ad - Fixed Position */}
+      <AdDisplay position="right" />
     </div>
   );
 };
