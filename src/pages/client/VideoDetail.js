@@ -530,51 +530,27 @@ const VideoDetail = () => {
                     __html: video.iframeCode
                       .replace('<iframe', '<iframe id="videoIframe" ref={iframeRef}')
                       .replace('<iframe', '<iframe style="width:100%;height:100%;position:absolute;top:0;left:0;border:0;"')
+                      .replace('http://', 'https://')
+                      .replace('<iframe', '<iframe allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen')
                       .replace('</iframe>', `<script>
-                        // Video oynatıcı olaylarını dinle ve ana pencereye ilet
-                        document.addEventListener('DOMContentLoaded', function() {
-                          // YouTube API'sini yükle
-                          var tag = document.createElement('script');
-                          tag.src = "https://www.youtube.com/iframe_api";
-                          var firstScriptTag = document.getElementsByTagName('script')[0];
-                          firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
-                          
-                          // Doğrudan video elementi varsa
-                          var video = document.querySelector('video');
-                          if (video) {
-                            video.addEventListener('play', function() {
-                              window.parent.postMessage(JSON.stringify({event: 'play'}), '*');
-                            });
-                            video.addEventListener('pause', function() {
-                              window.parent.postMessage(JSON.stringify({event: 'pause'}), '*');
-                            });
-                            video.addEventListener('ended', function() {
-                              window.parent.postMessage(JSON.stringify({event: 'end'}), '*');
-                            });
-                          }
-                          
-                          // YouTube iframe API için
-                          window.onYouTubeIframeAPIReady = function() {
-                            var iframes = document.getElementsByTagName('iframe');
-                            for (var i = 0; i < iframes.length; i++) {
-                              if (iframes[i].src.indexOf('youtube.com') > -1) {
-                                var player = new YT.Player(iframes[i], {
-                                  events: {
-                                    'onStateChange': function(event) {
-                                      if (event.data == YT.PlayerState.PLAYING) {
-                                        window.parent.postMessage(JSON.stringify({event: 'play'}), '*');
-                                      } else if (event.data == YT.PlayerState.PAUSED) {
-                                        window.parent.postMessage(JSON.stringify({event: 'pause'}), '*');
-                                      } else if (event.data == YT.PlayerState.ENDED) {
-                                        window.parent.postMessage(JSON.stringify({event: 'end'}), '*');
-                                      }
-                                    }
-                                  }
-                                });
-                              }
+                        try {
+                          document.addEventListener('DOMContentLoaded', function() {
+                            var video = document.querySelector('video');
+                            if (video) {
+                              video.addEventListener('play', function() {
+                                window.parent.postMessage(JSON.stringify({event: 'play'}), '*');
+                              });
+                              video.addEventListener('pause', function() {
+                                window.parent.postMessage(JSON.stringify({event: 'pause'}), '*');
+                              });
+                              video.addEventListener('ended', function() {
+                                window.parent.postMessage(JSON.stringify({event: 'end'}), '*');
+                              });
                             }
-                          };
-                        });
+                          });
+                        } catch (e) {
+                          console.error('Video player error:', e);
+                        }
                       </script></iframe>`) 
                   }}
                 />
@@ -584,6 +560,8 @@ const VideoDetail = () => {
                   src={video.videoUrl}
                   className="w-full aspect-video object-contain"
                   controls
+                  crossOrigin="anonymous"
+                  playsInline
                   onPlay={handlePlay}
                   onPause={handlePause}
                   onEnded={handleEnded}

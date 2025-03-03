@@ -11,6 +11,17 @@
         "source": "**",
         "destination": "/index.html"
       }
+    ],
+    "headers": [
+      {
+        "source": "**",
+        "headers": [
+          {
+            "key": "Content-Security-Policy",
+            "value": "default-src 'self' https: 'unsafe-inline' 'unsafe-eval'; frame-src 'self' https: http:; img-src 'self' https: http: data: blob:; media-src 'self' https: http: blob:; connect-src 'self' https: wss:;"
+          }
+        ]
+      }
     ]
   }
 }
