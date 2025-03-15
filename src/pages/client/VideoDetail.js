@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   doc, 
   getDoc, 
@@ -30,7 +30,8 @@ import {
   TagIcon,
   UserIcon,
   ShareIcon,
-  BookmarkIcon
+  BookmarkIcon,
+  ChatBubbleLeftIcon
 } from '@heroicons/react/24/outline';
 import { 
   HandThumbUpIcon as HandThumbUpSolidIcon, 
@@ -40,6 +41,8 @@ import {
 
 const VideoDetail = () => {
   const { id } = useParams();
+  const location = useLocation();
+  const navigate = useNavigate();
   const { currentUser, updateUserData } = useAuth();
   const [video, setVideo] = useState(null);
   const [relatedVideos, setRelatedVideos] = useState([]);
@@ -56,6 +59,7 @@ const VideoDetail = () => {
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [statusMessage, setStatusMessage] = useState(null);
   const iframeRef = useRef(null);
+  const [comments, setComments] = useState([]);
 
   // Clear status message after 3 seconds
   useEffect(() => {
@@ -78,11 +82,11 @@ const VideoDetail = () => {
           collection(db, 'videos'),
           where('tags', 'array-contains-any', videoData.tags.slice(0, 10))
         );
-      } else if (videoData.pornstars && videoData.pornstars.length > 0) {
-        // If no tags, get by pornstars
+      } else if (videoData.actors && videoData.actors.length > 0) {
+        // If no tags, get by actors
         relatedQuery = query(
           collection(db, 'videos'),
-          where('pornstars', 'array-contains-any', videoData.pornstars)
+          where('actors', 'array-contains-any', videoData.actors)
         );
       } else {
         // If neither, get by categories
@@ -237,6 +241,27 @@ const VideoDetail = () => {
       }
     };
   }, [video]);
+
+  // Fix for videoRef warning in useEffect
+  useEffect(() => {
+    const currentVideoRef = videoRef.current;
+    
+    if (currentVideoRef) {
+      currentVideoRef.addEventListener('play', handlePlay);
+      currentVideoRef.addEventListener('pause', handlePause);
+      currentVideoRef.addEventListener('ended', handleEnded);
+      currentVideoRef.addEventListener('timeupdate', handleTimeUpdate);
+      
+      return () => {
+        if (currentVideoRef) {
+          currentVideoRef.removeEventListener('play', handlePlay);
+          currentVideoRef.removeEventListener('pause', handlePause);
+          currentVideoRef.removeEventListener('ended', handleEnded);
+          currentVideoRef.removeEventListener('timeupdate', handleTimeUpdate);
+        }
+      };
+    }
+  }, []);
 
   // Beğenme işlemi
   const handleLike = async () => {
@@ -462,23 +487,20 @@ const VideoDetail = () => {
     }).format(date);
   };
 
+  const handleBackClick = () => {
+    if (location.state?.from === '/categories' || location.state?.from === '/pornstars') {
+      navigate('/videos');
+    } else {
+      navigate(-1);
+    }
+  };
+
   if (loading) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-500"></div>
-      </div>
-    );
+    return <div className="flex justify-center items-center min-h-screen">Loading...</div>;
   }
 
   if (error) {
-    return (
-      <div className="text-center py-12">
-        <p className="text-red-500 text-lg">{error}</p>
-        <Link to="/" className="mt-4 inline-block btn btn-primary">
-          Return to Home Page
-        </Link>
-      </div>
-    );
+    return <div className="text-red-500 text-center py-8">{error}</div>;
   }
 
   if (!video) {
@@ -493,7 +515,15 @@ const VideoDetail = () => {
   }
 
   return (
-    <div className="container mx-auto px-2 md:px-4 py-4 md:py-8 max-w-screen-xl">
+    <div className="container mx-auto px-4 py-8">
+      {(location.state?.from === '/categories' || location.state?.from === '/pornstars') && (
+        <button
+          onClick={handleBackClick}
+          className="mb-4 flex items-center text-blue-500 hover:text-blue-600"
+        >
+          <span className="mr-2">←</span> Back
+        </button>
+      )}
       {/* Status Message */}
       {statusMessage && (
         <div className={`fixed top-4 right-4 z-50 px-4 py-2 rounded-md shadow-lg ${
@@ -513,16 +543,16 @@ const VideoDetail = () => {
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-500"></div>
         </div>
       ) : (
-        <div className="w-full">
-          {/* Video Before Ad */}
-          <div className="mb-4">
-            <AdDisplay position="video-before" />
-          </div>
-          
-          {/* Video Player and Info */}
-          <div className="bg-dark-700 rounded-lg overflow-hidden mb-6 w-full">
+        <div className="flex flex-col lg:flex-row gap-6">
+          {/* Main Content - Video and Info */}
+          <div className="flex-1 max-w-[1280px]">
+            {/* Video Before Ad */}
+            <div className="mb-4">
+              <AdDisplay position="video-before" />
+            </div>
+            
             {/* Video Player */}
-            <div className="relative w-full">
+            <div className="w-full rounded-xl overflow-hidden bg-dark-900">
               {video.iframeCode ? (
                 <div 
                   className="w-full aspect-video relative overflow-hidden" 
@@ -571,135 +601,229 @@ const VideoDetail = () => {
               )}
             </div>
             
-            {/* Video After Ad - Moved inside video container for better positioning */}
-            <div className="w-full">
+            {/* Video After Ad */}
+            <div className="w-full mt-4">
               <AdDisplay position="video-after" />
             </div>
             
             {/* Video Info */}
-            <div className="p-4">
-              <h1 className="text-2xl font-bold text-white mb-2">{video.title}</h1>
+            <div className="mt-3">
+              {/* Title */}
+              <h1 className="text-2xl md:text-3xl font-bold text-white mb-3 leading-tight hover:text-primary-400 transition-colors cursor-pointer">{video.title}</h1>
               
-              <div className="flex flex-wrap items-center justify-between mb-4">
-                <div className="flex items-center text-gray-400 text-sm">
-                  <span>{formatViewCount(video.views || video.viewCount)} views</span>
-                  <span className="mx-2">•</span>
-                  <span>{formatDate(video.createdAt)}</span>
+              {/* Channel Info and Actions */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 py-4 border-t border-b border-dark-700/50">
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 text-sm text-gray-400">
+                    <EyeIcon className="h-5 w-5" />
+                    <span>{formatViewCount(video.views || video.viewCount)} views</span>
+                    <span className="mx-1">•</span>
+                    <span>{formatDate(video.createdAt)}</span>
+                  </div>
                 </div>
                 
-                <div className="flex items-center space-x-4 mt-2 sm:mt-0">
-                  <button
-                    onClick={handleLike}
-                    className={`flex items-center ${userInteraction.liked ? 'text-primary-500' : 'text-gray-400 hover:text-white'}`}
-                  >
-                    {userInteraction.liked ? (
-                      <HandThumbUpSolidIcon className="h-5 w-5 mr-1" />
-                    ) : (
-                      <HandThumbUpIcon className="h-5 w-5 mr-1" />
-                    )}
-                    <span>{formatCount(video.likeCount || 0)}</span>
-                  </button>
-                  
-                  <button
-                    onClick={handleDislike}
-                    className={`flex items-center ${userInteraction.disliked ? 'text-red-500' : 'text-gray-400 hover:text-white'}`}
-                  >
-                    {userInteraction.disliked ? (
-                      <HandThumbDownSolidIcon className="h-5 w-5 mr-1" />
-                    ) : (
-                      <HandThumbDownIcon className="h-5 w-5 mr-1" />
-                    )}
-                    <span>{formatCount(video.dislikeCount || 0)}</span>
-                  </button>
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center bg-dark-800 rounded-full p-1 shadow-lg hover:shadow-primary-500/10 transition-all duration-300">
+                    <button
+                      onClick={handleLike}
+                      className={`flex items-center gap-2 px-5 py-2.5 rounded-full transition-all duration-300 ${
+                        userInteraction.liked 
+                          ? 'bg-primary-500 text-white shadow-lg shadow-primary-500/20' 
+                          : 'text-gray-300 hover:bg-dark-700 hover:text-white'
+                      }`}
+                    >
+                      {userInteraction.liked ? (
+                        <HandThumbUpSolidIcon className="h-5 w-5" />
+                      ) : (
+                        <HandThumbUpIcon className="h-5 w-5" />
+                      )}
+                      <span className="font-medium">{formatCount(video.likeCount || 0)}</span>
+                    </button>
+                    
+                    <div className="h-8 w-px bg-dark-600 mx-1"></div>
+                    
+                    <button
+                      onClick={handleDislike}
+                      className={`flex items-center gap-2 px-5 py-2.5 rounded-full transition-all duration-300 ${
+                        userInteraction.disliked 
+                          ? 'bg-red-500 text-white shadow-lg shadow-red-500/20' 
+                          : 'text-gray-300 hover:bg-dark-700 hover:text-white'
+                      }`}
+                    >
+                      {userInteraction.disliked ? (
+                        <HandThumbDownSolidIcon className="h-5 w-5" />
+                      ) : (
+                        <HandThumbDownIcon className="h-5 w-5" />
+                      )}
+                    </button>
+                  </div>
                   
                   <button
                     onClick={handleSaveVideo}
-                    className="flex items-center justify-center p-1 rounded-full hover:bg-gray-800"
-                    title={userInteraction.featured ? "Remove from favorites" : "Add to favorites"}
+                    className={`flex items-center gap-2 px-5 py-2.5 rounded-full transition-all duration-300 ${
+                      userInteraction.featured 
+                        ? 'bg-red-500 text-white shadow-lg shadow-red-500/20' 
+                        : 'bg-dark-800 text-gray-300 hover:bg-dark-700 hover:text-white shadow-lg hover:shadow-primary-500/10'
+                    }`}
                   >
                     {userInteraction.featured ? (
-                      <HeartSolidIcon className="h-7 w-7 text-red-500" />
+                      <HeartSolidIcon className="h-5 w-5" />
                     ) : (
-                      <HeartIcon className="h-7 w-7 text-gray-300 hover:text-red-400" />
+                      <HeartIcon className="h-5 w-5" />
                     )}
+                    <span className="font-medium">Save</span>
                   </button>
                 </div>
+              </div>
+              
+              {/* Description and Tags */}
+              <div className="mt-6 p-4 bg-dark-800 rounded-2xl hover:bg-dark-700/80 transition-all duration-300 cursor-pointer shadow-lg hover:shadow-primary-500/5"
+                   onClick={() => setShowFullDescription(!showFullDescription)}>
+                <div className={`text-gray-300 ${showFullDescription ? '' : 'line-clamp-2'} border-b border-dark-600 pb-4 mb-4`}>
+                  {video.description || 'No description provided.'}
+                </div>
+                
+                {video.description && video.description.length > 100 && (
+                  <button
+                    className="text-primary-400 text-sm mt-3 mb-4 font-medium hover:text-primary-300 transition-colors flex items-center gap-2"
+                  >
+                    {showFullDescription ? 'Show less' : 'Show more'}
+                  </button>
+                )}
+                
+                {/* Categories and Tags */}
+                <div className="flex flex-wrap gap-2">
+                  {/* Categories */}
+                  {video.categories && video.categories.map(category => (
+                    <Link
+                      key={category}
+                      to={`/?category=${category}`}
+                      className="bg-dark-700/50 hover:bg-dark-600 text-xs text-gray-300 px-4 py-2 rounded-full transition-all duration-300 hover:text-white hover:shadow-lg hover:shadow-primary-500/10 font-medium flex items-center gap-1"
+                    >
+                      <span className="text-primary-400">#</span>
+                      {category}
+                    </Link>
+                  ))}
+                  
+                  {/* Tags */}
+                  {video.tags && video.tags.map(tag => (
+                    <Link
+                      key={tag}
+                      to={`/?tag=${tag}`}
+                      className="bg-dark-800/50 hover:bg-dark-700 text-xs text-gray-400 px-4 py-2 rounded-full transition-all duration-300 hover:text-white hover:shadow-lg hover:shadow-primary-500/10 font-medium flex items-center gap-1"
+                    >
+                      <span className="text-primary-400">#</span>
+                      {tag}
+                    </Link>
+                  ))}
+                </div>
+              </div>
+
+              {/* Actors Section */}
+              {video.actors && video.actors.length > 0 && (
+                <div className="mt-4 p-4 bg-dark-800/50 rounded-2xl">
+                  <h3 className="text-sm font-medium text-gray-400 mb-3">Actors</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {video.actors.map(actor => (
+                      <Link
+                        key={actor}
+                        to={`/?actor=${actor}`}
+                        className="bg-primary-900/30 hover:bg-primary-900/50 text-xs text-primary-300 px-4 py-2 rounded-full transition-all duration-300 hover:text-primary-200 hover:shadow-lg hover:shadow-primary-500/10 font-medium flex items-center gap-1"
+                      >
+                        <span className="text-primary-400">@</span>
+                        {actor}
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            {/* Comments Section */}
+            <div className="mt-6">
+              <div className="flex items-center gap-2 mb-6">
+                <h3 className="text-lg font-medium text-white">Comments</h3>
+                {video.commentCount > 0 && (
+                  <span className="text-sm text-gray-400">{formatCount(video.commentCount)}</span>
+                )}
+              </div>
+
+              {/* Comment Input */}
+              <div className="flex gap-4 mb-6">
+                <div className="flex-shrink-0">
+                  <div className="w-10 h-10 rounded-full bg-dark-600 flex items-center justify-center">
+                    <UserIcon className="h-6 w-6 text-gray-400" />
+                  </div>
+                </div>
+                <div className="flex-1">
+                  <div className="relative">
+                    <textarea
+                      placeholder="Add a comment..."
+                      rows="1"
+                      className="w-full bg-transparent border-b border-dark-600 focus:border-white text-gray-200 placeholder-gray-500 py-1 resize-none focus:outline-none transition-colors"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Comments List */}
+              <div className="space-y-4">
+                {comments && comments.length > 0 ? (
+                  comments.map(comment => (
+                    <div key={comment.id} className="flex gap-4 group">
+                      <div className="flex-shrink-0">
+                        <div className="w-10 h-10 rounded-full bg-dark-600 flex items-center justify-center">
+                          <UserIcon className="h-6 w-6 text-gray-400" />
+                        </div>
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-white">{comment.userName || 'Anonymous'}</span>
+                          <span className="text-xs text-gray-400">{formatDate(comment.createdAt)}</span>
+                        </div>
+                        <p className="text-gray-300 mt-1">{comment.text}</p>
+                        <div className="flex items-center gap-4 mt-2">
+                          <button className="flex items-center gap-1 text-gray-400 hover:text-white">
+                            <HandThumbUpIcon className="h-4 w-4" />
+                            <span className="text-xs">{formatCount(comment.likes || 0)}</span>
+                          </button>
+                          <button className="flex items-center gap-1 text-gray-400 hover:text-white">
+                            <HandThumbDownIcon className="h-4 w-4" />
+                          </button>
+                          <button className="text-xs font-medium text-gray-400 hover:text-white">Reply</button>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-8 text-gray-400">
+                    <ChatBubbleLeftIcon className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                    <p>No comments yet. Be the first to comment!</p>
+                  </div>
+                )}
               </div>
             </div>
           </div>
           
-          {/* Video Description */}
-          <div className="mt-4 border-t border-dark-600 pt-4">
-            <div className="mt-4">
-              <div className={`text-gray-300 ${showFullDescription ? '' : 'line-clamp-2'}`}>
-                {video.description || 'No description provided.'}
-              </div>
-              
-              {video.description && video.description.length > 100 && (
-                <button
-                  onClick={() => setShowFullDescription(!showFullDescription)}
-                  className="text-primary-500 text-sm mt-1 hover:underline"
-                >
-                  {showFullDescription ? 'Show less' : 'Show more'}
-                </button>
+          {/* Sidebar - Related Videos */}
+          <div className="lg:w-[400px] xl:w-[426px]">
+            <div className="grid gap-3">
+              {relatedVideos.length > 0 ? (
+                relatedVideos.map(relatedVideo => (
+                  <VideoCard key={relatedVideo.id} video={relatedVideo} />
+                ))
+              ) : (
+                <p className="text-gray-400">No related videos found.</p>
               )}
-            </div>
-            
-            {/* Categories and Pornstars */}
-            <div className="mt-4 flex flex-wrap gap-2">
-              {video.categories && video.categories.map(category => (
-                <Link
-                  key={category}
-                  to={`/?category=${category}`}
-                  className="bg-dark-600 hover:bg-dark-500 text-sm text-gray-300 px-2 py-1 rounded"
-                >
-                  {category}
-                </Link>
-              ))}
-              
-              {video.pornstars && video.pornstars.map(pornstar => (
-                <Link
-                  key={pornstar}
-                  to={`/?pornstar=${pornstar}`}
-                  className="bg-primary-900 hover:bg-primary-800 text-sm text-primary-300 px-2 py-1 rounded"
-                >
-                  {pornstar}
-                </Link>
-              ))}
             </div>
           </div>
         </div>
       )}
       
-      {/* Comments Section */}
-      <div className="bg-dark-700 rounded-lg p-4 mb-6">
-        <CommentSection videoId={id} />
-      </div>
-      
-      {/* Related Videos */}
-      <div className="mb-6">
-        <h2 className="text-xl font-bold text-white mb-4">Related Videos</h2>
-        {relatedVideos.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {relatedVideos.map(relatedVideo => (
-              <VideoCard key={relatedVideo.id} video={relatedVideo} />
-            ))}
-          </div>
-        ) : (
-          <p className="text-gray-400">No related videos found.</p>
-        )}
-      </div>
-      
       {/* Footer Ad */}
       <div className="mt-8">
         <AdDisplay position="footer" />
       </div>
-      
-      {/* Left Ad - Fixed Position */}
-      <AdDisplay position="left" />
-      
-      {/* Right Ad - Fixed Position */}
-      <AdDisplay position="right" />
     </div>
   );
 };

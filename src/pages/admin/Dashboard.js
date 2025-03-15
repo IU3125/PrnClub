@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, query, orderBy, limit, getCountFromServer } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, limit, getCountFromServer, doc, getDoc, where } from 'firebase/firestore';
 import { db, auth } from '../../firebase/config';
 import { useTheme } from '../../context/ThemeContext';
 import {
   UsersIcon,
+  DevicePhoneMobileIcon,
+  ComputerDesktopIcon,
   FilmIcon,
   ChatBubbleLeftRightIcon,
   EyeIcon,
@@ -29,7 +31,7 @@ const Dashboard = () => {
   const [categoryStats, setCategoryStats] = useState([]);
   
   // Grafik verileri ve zaman aralığı seçimi için state'ler
-  const [timeRange, setTimeRange] = useState('month');
+  const [timeRange, setTimeRange] = useState('daily');
   const [graphData, setGraphData] = useState({
     mobile: [],
     pc: []
@@ -40,6 +42,35 @@ const Dashboard = () => {
   
   // Admin kullanıcı bilgisi
   const [adminUser, setAdminUser] = useState(null);
+
+  const [deviceStats, setDeviceStats] = useState({
+    mobile: 0,
+    pc: 0,
+    total: 0,
+    lastUpdated: null
+  });
+
+  // Add new states for user behavior statistics
+  const [userBehaviorStats, setUserBehaviorStats] = useState({
+    avgSessionDuration: 0,
+    bounceRate: 0,
+    peakHours: [],
+    lastUpdated: null
+  });
+
+  // Add new state for behavior graph data
+  const [behaviorGraphData, setBehaviorGraphData] = useState({
+    sessionDuration: [],
+    bounceRate: [],
+    peakHours: []
+  });
+
+  // Add new state for ad statistics
+  const [adStats, setAdStats] = useState({
+    ctr: 0,
+    impressionsPerPage: 0,
+    lastUpdated: null
+  });
 
   // Time range changed, update data
   useEffect(() => {
@@ -57,24 +88,183 @@ const Dashboard = () => {
     return () => unsubscribe();
   }, []);
 
-  // Grafik verilerini zaman aralığına göre getir
+  // Fetch device statistics
+  useEffect(() => {
+    const fetchDeviceStats = async () => {
+      try {
+        const statsRef = doc(db, 'statistics', 'mainSiteVisitors');
+        const statsDoc = await getDoc(statsRef);
+        
+        if (statsDoc.exists()) {
+          setDeviceStats(statsDoc.data());
+        }
+      } catch (error) {
+        console.error('Error fetching device statistics:', error);
+      }
+    };
+
+    fetchDeviceStats();
+  }, []);
+
+  // Fetch user behavior statistics
+  useEffect(() => {
+    const fetchUserBehaviorStats = async () => {
+      try {
+        const statsRef = doc(db, 'statistics', 'userBehavior');
+        const statsDoc = await getDoc(statsRef);
+        
+        if (statsDoc.exists()) {
+          setUserBehaviorStats(statsDoc.data());
+        }
+      } catch (error) {
+        console.error('Error fetching user behavior statistics:', error);
+      }
+    };
+
+    fetchUserBehaviorStats();
+  }, []);
+
+  // Fetch behavior graph data based on time range
+  const fetchBehaviorGraphData = async (selectedRange) => {
+    try {
+      const behaviorRef = collection(db, 'statistics', 'userBehavior', 'dailyStats');
+      let startDate = new Date();
+      const now = new Date();
+
+      // Set date range based on selection
+      switch (selectedRange) {
+        case 'daily':
+          startDate.setDate(now.getDate() - 7);
+          break;
+        case 'weekly':
+          startDate.setDate(now.getDate() - 30);
+          break;
+        case 'monthly':
+          startDate.setMonth(now.getMonth() - 6);
+          break;
+        default:
+          startDate.setDate(now.getDate() - 7);
+      }
+
+      startDate.setHours(0, 0, 0, 0);
+      const behaviorQuery = query(
+        behaviorRef,
+        where('date', '>=', startDate),
+        orderBy('date', 'asc')
+      );
+
+      const snapshot = await getDocs(behaviorQuery);
+      const data = {
+        sessionDuration: [],
+        bounceRate: [],
+        peakHours: []
+      };
+
+      snapshot.docs.forEach(doc => {
+        const behaviorData = doc.data();
+        const date = behaviorData.date.toDate();
+        const formattedDate = date.toLocaleDateString('tr-TR', {
+          day: 'numeric',
+          month: 'short'
+        });
+
+        data.sessionDuration.push({
+          date: formattedDate,
+          value: behaviorData.avgSessionDuration || 0
+        });
+
+        data.bounceRate.push({
+          date: formattedDate,
+          value: behaviorData.bounceRate || 0
+        });
+
+        data.peakHours.push({
+          date: formattedDate,
+          value: behaviorData.peakHourVisitors || 0
+        });
+      });
+
+      setBehaviorGraphData(data);
+    } catch (error) {
+      console.error('Error fetching behavior graph data:', error);
+    }
+  };
+
+  // Update behavior data when time range changes
+  useEffect(() => {
+    fetchBehaviorGraphData(timeRange);
+  }, [timeRange]);
+
+  // Fetch graph data based on time range
   const fetchGraphData = async (selectedRange) => {
     try {
-      // NOTE: This function will fetch graph data from Firebase based on the selected time range.
-      // Currently left empty.
+      setLoading(true);
+      const visitsRef = collection(db, 'statistics', 'mainSiteVisitors', 'dailyStats');
+      let visitsQuery;
+      const now = new Date();
+      let startDate = new Date();
+
+      // Set date range based on selection
+      switch (selectedRange) {
+        case 'daily':
+          startDate.setDate(now.getDate() - 7); // Last 7 days
+          break;
+        case 'weekly':
+          startDate.setDate(now.getDate() - 30); // Last 30 days
+          break;
+        case 'monthly':
+          startDate.setMonth(now.getMonth() - 6); // Last 6 months
+          break;
+        default:
+          startDate.setDate(now.getDate() - 7);
+      }
+
+      startDate.setHours(0, 0, 0, 0);
+      visitsQuery = query(
+        visitsRef,
+        where('date', '>=', startDate),
+        orderBy('date', 'asc')
+      );
+
+      const visitsSnapshot = await getDocs(visitsQuery);
+      const dailyStats = {};
+
+      // Initialize data structure
+      visitsSnapshot.docs.forEach(doc => {
+        const data = doc.data();
+        const date = data.date.toDate();
+        const dateKey = date.toISOString().split('T')[0];
+        
+        if (!dailyStats[dateKey]) {
+          dailyStats[dateKey] = { mobile: 0, pc: 0, date: dateKey };
+        }
+        
+        if (data.mobile) dailyStats[dateKey].mobile++;
+        if (data.pc) dailyStats[dateKey].pc++;
+      });
+
+      // Convert to arrays for the graph
+      const mobileData = [];
+      const pcData = [];
       
-      // Example data structure:
-      // setGraphData({
-      //   mobile: [{date: '5', value: 30}, {date: '10', value: 40}, ...],
-      //   pc: [{date: '5', value: 50}, {date: '10', value: 25}, ...]
-      // });
-      
-      console.log(`Graph data will be fetched for ${selectedRange}`);
-      
-      // For now, we can use different sample data when the time range changes
-      // (in the real application, this part will fetch data from Firebase)
+      Object.values(dailyStats).forEach(stat => {
+        const formattedDate = new Date(stat.date).toLocaleDateString('tr-TR', {
+          day: 'numeric',
+          month: 'short'
+        });
+        
+        mobileData.push({ date: formattedDate, value: stat.mobile });
+        pcData.push({ date: formattedDate, value: stat.pc });
+      });
+
+      setGraphData({
+        mobile: mobileData,
+        pc: pcData
+      });
     } catch (error) {
-      console.error(`Error fetching graph data for ${selectedRange}:`, error);
+      console.error('Error fetching graph data:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -119,7 +309,7 @@ const Dashboard = () => {
         const popularVideosQuery = query(
           collection(db, 'videos'),
           orderBy('viewCount', 'desc'),
-          limit(5)
+          limit(6)
         );
         
         const popularVideosSnapshot = await getDocs(popularVideosQuery);
@@ -158,6 +348,32 @@ const Dashboard = () => {
 
     fetchDashboardData();
   }, []);
+
+  // Fetch ad statistics
+  useEffect(() => {
+    const fetchAdStats = async () => {
+      try {
+        const statsRef = doc(db, 'statistics', 'adPerformance');
+        const statsDoc = await getDoc(statsRef);
+        
+        if (statsDoc.exists()) {
+          setAdStats(statsDoc.data());
+        }
+      } catch (error) {
+        console.error('Error fetching ad statistics:', error);
+      }
+    };
+
+    fetchAdStats();
+  }, []);
+
+  // Calculate percentages for the graph
+  const calculatePercentage = (value) => {
+    return deviceStats.total > 0 ? (value / deviceStats.total) * 100 : 0;
+  };
+
+  const mobilePercentage = calculatePercentage(deviceStats.mobile);
+  const pcPercentage = calculatePercentage(deviceStats.pc);
 
   // İzlenme sayısını biçimlendir
   const formatNumber = (num) => {
@@ -233,226 +449,580 @@ const Dashboard = () => {
   };
 
   return (
-    <div className={`p-6 ${darkMode ? 'bg-dark-900 text-white' : 'bg-gray-100 text-gray-800'}`}>
+    <div className={`p-4 sm:p-6 ${darkMode ? 'bg-dark-900 text-white' : 'bg-gray-100 text-gray-800'}`}>
       {/* Üst Kısım - Başlık ve Profil */}
-      <div className="flex flex-col space-y-4 mb-6">
-        {/* Başlık ve Profil */}
-        <div className="flex justify-between items-center">
-          <div>
-            <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Pages / Dashboard</p>
-            <h1 className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>Main Dashboard</h1>
-          </div>
-          <div className="flex items-center space-x-4">
-            {/* Profil Resmi */}
-            <div className="h-8 w-8 rounded-full bg-blue-500 overflow-hidden">
-              {adminUser && adminUser.photoURL ? (
-                <img 
-                  src={adminUser.photoURL} 
-                  alt="Admin Profile" 
-                  className="h-full w-full object-cover"
-                />
-              ) : (
-                <img 
-                  src="/images/avatar-default.png" 
-                  alt="Default Avatar" 
-                  className="h-full w-full object-cover"
-                  onError={(e) => {
-                    e.target.onerror = null;
-                    e.target.src = "https://ui-avatars.com/api/?name=Admin&background=0D8ABC&color=fff";
-                  }}
-                />
-              )}
-            </div>
-          </div>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4 sm:gap-0">
+        <div>
+          <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Pages / Dashboard</p>
+          <h1 className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>Main Dashboard</h1>
         </div>
-        
-        {/* Zaman Aralığı Seçimi - Sağ Üst Köşede */}
-        <div className="flex justify-end">
-          <div className="relative inline-block">
-            <button 
-              className={`px-4 py-2 rounded-md text-sm flex items-center space-x-2 ${darkMode ? 'bg-dark-800 text-white' : 'bg-white text-gray-800 border border-gray-300 shadow-sm'}`}
-              onClick={() => document.getElementById('timeRangeDropdown').classList.toggle('hidden')}
-            >
-              <span>{timeRange === 'month' ? months[new Date().getMonth()] : timeRange === 'week' ? 'This Week' : 'Today'}</span>
-              <ChevronDownIcon className="h-4 w-4" />
-            </button>
-            
-            <div 
-              id="timeRangeDropdown" 
-              className={`absolute right-0 mt-2 w-40 rounded-md shadow-lg overflow-hidden z-10 hidden ${darkMode ? 'bg-dark-800' : 'bg-white border border-gray-300'}`}
-            >
-              <div className="py-1">
-                <button 
-                  className={`block w-full text-left px-4 py-2 text-sm ${darkMode ? 'text-white hover:bg-dark-700' : 'text-gray-800 hover:bg-gray-100'}`}
-                  onClick={() => {
-                    setTimeRange('month');
-                    document.getElementById('timeRangeDropdown').classList.add('hidden');
-                  }}
-                >
-                  Month
-                </button>
-                <button 
-                  className={`block w-full text-left px-4 py-2 text-sm ${darkMode ? 'text-white hover:bg-dark-700' : 'text-gray-800 hover:bg-gray-100'}`}
-                  onClick={() => {
-                    setTimeRange('week');
-                    document.getElementById('timeRangeDropdown').classList.add('hidden');
-                  }}
-                >
-                  Week
-                </button>
-                <button 
-                  className={`block w-full text-left px-4 py-2 text-sm ${darkMode ? 'text-white hover:bg-dark-700' : 'text-gray-800 hover:bg-gray-100'}`}
-                  onClick={() => {
-                    setTimeRange('day');
-                    document.getElementById('timeRangeDropdown').classList.add('hidden');
-                  }}
-                >
-                  Day
-                </button>
-              </div>
-            </div>
+        <div className="flex items-center space-x-4">
+          {/* Profil Resmi */}
+          <div className="h-8 w-8 rounded-full bg-blue-500 overflow-hidden">
+            {adminUser && adminUser.photoURL ? (
+              <img 
+                src={adminUser.photoURL} 
+                alt="Admin Profile" 
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <img 
+                src="/images/avatar-default.png" 
+                alt="Default Avatar" 
+                className="h-full w-full object-cover"
+                onError={(e) => {
+                  e.target.onerror = null;
+                  e.target.src = "https://ui-avatars.com/api/?name=Admin&background=0D8ABC&color=fff";
+                }}
+              />
+            )}
           </div>
         </div>
       </div>
       
       {/* Ana Grafik - Mobil ve PC Kullanımı */}
-      <div className={`rounded-lg p-6 mb-6 shadow-lg ${darkMode ? 'bg-dark-800' : 'bg-white border border-gray-200'}`}>
-        <div className="h-64 relative">
-          {/* SVG Grafik */}
-          <svg className="w-full h-full" viewBox="0 0 800 300">
-            {/* Arka plan çizgileri */}
-            <line x1="0" y1="0" x2="800" y2="0" stroke={darkMode ? "#2D3748" : "#E2E8F0"} strokeWidth="1" />
-            <line x1="0" y1="60" x2="800" y2="60" stroke={darkMode ? "#2D3748" : "#E2E8F0"} strokeWidth="1" />
-            <line x1="0" y1="120" x2="800" y2="120" stroke={darkMode ? "#2D3748" : "#E2E8F0"} strokeWidth="1" />
-            <line x1="0" y1="180" x2="800" y2="180" stroke={darkMode ? "#2D3748" : "#E2E8F0"} strokeWidth="1" />
-            <line x1="0" y1="240" x2="800" y2="240" stroke={darkMode ? "#2D3748" : "#E2E8F0"} strokeWidth="1" />
-            <line x1="0" y1="300" x2="800" y2="300" stroke={darkMode ? "#2D3748" : "#E2E8F0"} strokeWidth="1" />
-            
-            {/* X ekseni etiketleri */}
-            <text x="5" y="295" fill={darkMode ? "#A0AEC0" : "#4A5568"} fontSize="12">5</text>
-            <text x="160" y="295" fill={darkMode ? "#A0AEC0" : "#4A5568"} fontSize="12">10</text>
-            <text x="320" y="295" fill={darkMode ? "#A0AEC0" : "#4A5568"} fontSize="12">15</text>
-            <text x="480" y="295" fill={darkMode ? "#A0AEC0" : "#4A5568"} fontSize="12">20</text>
-            <text x="640" y="295" fill={darkMode ? "#A0AEC0" : "#4A5568"} fontSize="12">25</text>
-            <text x="780" y="295" fill={darkMode ? "#A0AEC0" : "#4A5568"} fontSize="12">30</text>
-            
-            {/* Y ekseni etiketleri */}
-            <text x="10" y="245" fill={darkMode ? "#A0AEC0" : "#4A5568"} fontSize="12">20</text>
-            <text x="10" y="185" fill={darkMode ? "#A0AEC0" : "#4A5568"} fontSize="12">40</text>
-            <text x="10" y="125" fill={darkMode ? "#A0AEC0" : "#4A5568"} fontSize="12">60</text>
-            <text x="10" y="65" fill={darkMode ? "#A0AEC0" : "#4A5568"} fontSize="12">80</text>
-            <text x="5" y="15" fill={darkMode ? "#A0AEC0" : "#4A5568"} fontSize="12">100</text>
-            
-            {/* Mobil veri çizgisi ve alanı */}
-            <path 
-              d="M0,240 C30,200 60,180 90,170 C120,160 150,150 180,140 C210,130 240,120 270,110 C300,100 330,90 360,80 C390,70 420,60 450,70 C480,80 510,90 540,80 C570,70 600,60 630,50 C660,40 690,30 720,40 C750,50 780,60 800,50" 
-              fill="none" 
-              stroke="#9F7AEA" 
-              strokeWidth="3"
-            />
-            <path 
-              d="M0,240 C30,200 60,180 90,170 C120,160 150,150 180,140 C210,130 240,120 270,110 C300,100 330,90 360,80 C390,70 420,60 450,70 C480,80 510,90 540,80 C570,70 600,60 630,50 C660,40 690,30 720,40 C750,50 780,60 800,50 L800,300 L0,300 Z" 
-              fill="url(#purpleGradient)" 
-              fillOpacity="0.5"
-            />
-            
-            {/* PC veri çizgisi ve alanı */}
-            <path 
-              d="M0,180 C30,190 60,200 90,190 C120,180 150,170 180,180 C210,190 240,200 270,190 C300,180 330,170 360,160 C390,150 420,140 450,150 C480,160 510,170 540,160 C570,150 600,140 630,150 C660,160 690,170 720,160 C750,150 780,140 800,130" 
-              fill="none" 
-              stroke="#F56565" 
-              strokeWidth="3"
-            />
-            <path 
-              d="M0,180 C30,190 60,200 90,190 C120,180 150,170 180,180 C210,190 240,200 270,190 C300,180 330,170 360,160 C390,150 420,140 450,150 C480,160 510,170 540,160 C570,150 600,140 630,150 C660,160 690,170 720,160 C750,150 780,140 800,130 L800,300 L0,300 Z" 
-              fill="url(#redGradient)" 
-              fillOpacity="0.5"
-            />
-            
-            {/* Gradyanlar */}
-            <defs>
-              <linearGradient id="purpleGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                <stop offset="0%" stopColor="#9F7AEA" stopOpacity="0.8" />
-                <stop offset="100%" stopColor="#9F7AEA" stopOpacity="0.1" />
-              </linearGradient>
-              <linearGradient id="redGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                <stop offset="0%" stopColor="#F56565" stopOpacity="0.8" />
-                <stop offset="100%" stopColor="#F56565" stopOpacity="0.1" />
-              </linearGradient>
-            </defs>
-          </svg>
+      <div className={`rounded-lg p-4 sm:p-6 mb-6 shadow-lg ${darkMode ? 'bg-dark-800' : 'bg-white border border-gray-200'}`}>
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-3 sm:gap-0">
+          <h2 className={`text-xl font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+            Daily Active Users by Device Type
+          </h2>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setTimeRange('daily')}
+              className={`px-3 py-1 rounded-md text-sm font-medium ${
+                timeRange === 'daily'
+                  ? 'bg-purple-500 text-white'
+                  : darkMode
+                  ? 'bg-dark-700 text-gray-300'
+                  : 'bg-gray-100 text-gray-700'
+              }`}
+            >
+              Daily
+            </button>
+            <button
+              onClick={() => setTimeRange('weekly')}
+              className={`px-3 py-1 rounded-md text-sm font-medium ${
+                timeRange === 'weekly'
+                  ? 'bg-purple-500 text-white'
+                  : darkMode
+                  ? 'bg-dark-700 text-gray-300'
+                  : 'bg-gray-100 text-gray-700'
+              }`}
+            >
+              Weekly
+            </button>
+            <button
+              onClick={() => setTimeRange('monthly')}
+              className={`px-3 py-1 rounded-md text-sm font-medium ${
+                timeRange === 'monthly'
+                  ? 'bg-purple-500 text-white'
+                  : darkMode
+                  ? 'bg-dark-700 text-gray-300'
+                  : 'bg-gray-100 text-gray-700'
+              }`}
+            >
+              Monthly
+            </button>
+          </div>
         </div>
-        
-        {/* Grafik Açıklaması */}
-        <div className="flex justify-center mt-4 space-x-8">
+
+        {/* Statistics Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+          <div className={`p-4 rounded-lg ${darkMode ? 'bg-dark-700' : 'bg-gray-50'}`}>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className={`text-sm font-medium ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Total Visits</p>
+                <h3 className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                  {deviceStats.total || 0}
+                </h3>
+              </div>
+              <div className="p-3 rounded-full bg-blue-500 bg-opacity-10">
+                <UsersIcon className="w-6 h-6 text-blue-500" />
+              </div>
+            </div>
+          </div>
+
+          <div className={`p-4 rounded-lg ${darkMode ? 'bg-dark-700' : 'bg-gray-50'}`}>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className={`text-sm font-medium ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Mobile Users</p>
+                <h3 className={`text-2xl font-bold text-purple-500`}>
+                  {deviceStats.mobile || 0}
+                </h3>
+              </div>
+              <div className="p-3 rounded-full bg-purple-500 bg-opacity-10">
+                <DevicePhoneMobileIcon className="w-6 h-6 text-purple-500" />
+              </div>
+            </div>
+          </div>
+
+          <div className={`p-4 rounded-lg ${darkMode ? 'bg-dark-700' : 'bg-gray-50'}`}>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className={`text-sm font-medium ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>PC Users</p>
+                <h3 className={`text-2xl font-bold text-red-500`}>
+                  {deviceStats.pc || 0}
+                </h3>
+              </div>
+              <div className="p-3 rounded-full bg-red-500 bg-opacity-10">
+                <ComputerDesktopIcon className="w-6 h-6 text-red-500" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Graph */}
+        <div className="h-80 relative">
+          {loading ? (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500"></div>
+            </div>
+          ) : (
+            <svg className="w-full h-full" viewBox="0 0 800 300">
+              {/* Background Grid */}
+              {[0, 1, 2, 3, 4, 5].map((i) => (
+                <g key={i}>
+                  <line
+                    x1="50"
+                    y1={i * 60}
+                    x2="750"
+                    y2={i * 60}
+                    stroke={darkMode ? '#2D3748' : '#E2E8F0'}
+                    strokeWidth="1"
+                  />
+                  <text
+                    x="30"
+                    y={300 - i * 60}
+                    fill={darkMode ? '#A0AEC0' : '#4A5568'}
+                    fontSize="12"
+                    textAnchor="end"
+                  >
+                    {i * Math.ceil(Math.max(...[...graphData.mobile, ...graphData.pc].map(d => d.value)) / 5)}
+                  </text>
+                </g>
+              ))}
+
+              {/* X-Axis Labels */}
+              {graphData.mobile.map((point, i) => (
+                <text
+                  key={i}
+                  x={50 + (i * (700 / (graphData.mobile.length - 1)))}
+                  y="290"
+                  fill={darkMode ? '#A0AEC0' : '#4A5568'}
+                  fontSize="12"
+                  textAnchor="middle"
+                >
+                  {point.date}
+                </text>
+              ))}
+
+              {/* Mobile Data Line */}
+              <path
+                d={`M${graphData.mobile
+                  .map((point, i) => {
+                    const x = 50 + (i * (700 / (graphData.mobile.length - 1)));
+                    const y = 300 - (point.value * (240 / Math.max(...graphData.mobile.map(d => d.value))));
+                    return `${i === 0 ? 'M' : 'L'}${x},${y}`;
+                  })
+                  .join(' ')}`}
+                fill="none"
+                stroke="#9F7AEA"
+                strokeWidth="3"
+              />
+
+              {/* PC Data Line */}
+              <path
+                d={`M${graphData.pc
+                  .map((point, i) => {
+                    const x = 50 + (i * (700 / (graphData.pc.length - 1)));
+                    const y = 300 - (point.value * (240 / Math.max(...graphData.pc.map(d => d.value))));
+                    return `${i === 0 ? 'M' : 'L'}${x},${y}`;
+                  })
+                  .join(' ')}`}
+                fill="none"
+                stroke="#F56565"
+                strokeWidth="3"
+              />
+
+              {/* Area under Mobile Line */}
+              <path
+                d={`M50,300 ${graphData.mobile
+                  .map((point, i) => {
+                    const x = 50 + (i * (700 / (graphData.mobile.length - 1)));
+                    const y = 300 - (point.value * (240 / Math.max(...graphData.mobile.map(d => d.value))));
+                    return `L${x},${y}`;
+                  })
+                  .join(' ')} L750,300 Z`}
+                fill="url(#purpleGradient)"
+                opacity="0.1"
+              />
+
+              {/* Area under PC Line */}
+              <path
+                d={`M50,300 ${graphData.pc
+                  .map((point, i) => {
+                    const x = 50 + (i * (700 / (graphData.pc.length - 1)));
+                    const y = 300 - (point.value * (240 / Math.max(...graphData.pc.map(d => d.value))));
+                    return `L${x},${y}`;
+                  })
+                  .join(' ')} L750,300 Z`}
+                fill="url(#redGradient)"
+                opacity="0.1"
+              />
+
+              {/* Gradients */}
+              <defs>
+                <linearGradient id="purpleGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                  <stop offset="0%" stopColor="#9F7AEA" stopOpacity="0.8" />
+                  <stop offset="100%" stopColor="#9F7AEA" stopOpacity="0.1" />
+                </linearGradient>
+                <linearGradient id="redGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                  <stop offset="0%" stopColor="#F56565" stopOpacity="0.8" />
+                  <stop offset="100%" stopColor="#F56565" stopOpacity="0.1" />
+                </linearGradient>
+              </defs>
+            </svg>
+          )}
+        </div>
+
+        {/* Legend */}
+        <div className="flex justify-center space-x-6 mt-4">
           <div className="flex items-center">
             <div className="w-3 h-3 rounded-full bg-purple-500 mr-2"></div>
-            <span className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Mobile</span>
+            <span className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Mobile Users</span>
           </div>
           <div className="flex items-center">
             <div className="w-3 h-3 rounded-full bg-red-500 mr-2"></div>
-            <span className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>PC</span>
+            <span className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>PC Users</span>
           </div>
+        </div>
+
+        {/* Last Updated */}
+        <div className="text-right mt-4">
+          <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+            Last Updated: {deviceStats.lastUpdated ? new Date(deviceStats.lastUpdated.toDate()).toLocaleString('tr-TR') : 'N/A'}
+          </span>
         </div>
       </div>
       
-      {/* Operating System Statistics */}
+      {/* User Behavior Statistics */}
       <div className={`rounded-lg p-6 mb-6 shadow-lg ${darkMode ? 'bg-dark-800' : 'bg-white border border-gray-200'}`}>
-        <h2 className={`text-lg font-semibold mb-4 uppercase ${darkMode ? 'text-white' : 'text-gray-900'}`}>Operating System Stats</h2>
-        {osStats.length > 0 ? (
-          <div className="space-y-4">
-            {osStats.map((os, index) => (
-              <div key={index} className="flex flex-col">
-                <div className="flex justify-between mb-1">
-                  <span className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>{os.name}</span>
-                  <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>{os.value}</span>
-                </div>
-                <div className={`w-full rounded-full h-2 ${darkMode ? 'bg-dark-700' : 'bg-gray-200'}`}>
-                  <div 
-                    className={`h-2 rounded-full ${
-                      index === 0 ? 'bg-yellow-500' : 
-                      index === 1 ? 'bg-yellow-600' : 
-                      index === 2 ? 'bg-yellow-700' : 
-                      index === 3 ? 'bg-yellow-800' : 
-                      'bg-yellow-900'
-                    }`} 
-                    style={{ width: `${os.value * 10}%` }}
-                  ></div>
-                </div>
+        <div className="flex justify-between items-center mb-6">
+          <h2 className={`text-xl font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+            User Behavior Analytics
+          </h2>
+          <div className="flex space-x-2">
+            <button
+              onClick={() => setTimeRange('daily')}
+              className={`px-3 py-1 rounded-md text-sm font-medium ${
+                timeRange === 'daily'
+                  ? 'bg-purple-500 text-white'
+                  : darkMode
+                  ? 'bg-dark-700 text-gray-300'
+                  : 'bg-gray-100 text-gray-700'
+              }`}
+            >
+              Daily
+            </button>
+            <button
+              onClick={() => setTimeRange('weekly')}
+              className={`px-3 py-1 rounded-md text-sm font-medium ${
+                timeRange === 'weekly'
+                  ? 'bg-purple-500 text-white'
+                  : darkMode
+                  ? 'bg-dark-700 text-gray-300'
+                  : 'bg-gray-100 text-gray-700'
+              }`}
+            >
+              Weekly
+            </button>
+            <button
+              onClick={() => setTimeRange('monthly')}
+              className={`px-3 py-1 rounded-md text-sm font-medium ${
+                timeRange === 'monthly'
+                  ? 'bg-purple-500 text-white'
+                  : darkMode
+                  ? 'bg-dark-700 text-gray-300'
+                  : 'bg-gray-100 text-gray-700'
+              }`}
+            >
+              Monthly
+            </button>
+          </div>
+        </div>
+
+        {/* Behavior Statistics Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+          <div className={`p-4 rounded-lg ${darkMode ? 'bg-dark-700' : 'bg-gray-50'}`}>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className={`text-sm font-medium ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Average Session Duration</p>
+                <h3 className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                  {Math.round(userBehaviorStats.avgSessionDuration || 0)} min
+                </h3>
               </div>
-            ))}
+              <div className="p-3 rounded-full bg-green-500 bg-opacity-10">
+                <ClockIcon className="w-6 h-6 text-green-500" />
+              </div>
+            </div>
+          </div>
+
+          <div className={`p-4 rounded-lg ${darkMode ? 'bg-dark-700' : 'bg-gray-50'}`}>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className={`text-sm font-medium ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Bounce Rate</p>
+                <h3 className={`text-2xl font-bold text-orange-500`}>
+                  {Math.round(userBehaviorStats.bounceRate || 0)}%
+                </h3>
+              </div>
+              <div className="p-3 rounded-full bg-orange-500 bg-opacity-10">
+                <EyeIcon className="w-6 h-6 text-orange-500" />
+              </div>
+            </div>
+          </div>
+
+          <div className={`p-4 rounded-lg ${darkMode ? 'bg-dark-700' : 'bg-gray-50'}`}>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className={`text-sm font-medium ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Peak Hour Traffic</p>
+                <h3 className={`text-2xl font-bold text-blue-500`}>
+                  {userBehaviorStats.peakHour || 'N/A'}
+                </h3>
+              </div>
+              <div className="p-3 rounded-full bg-blue-500 bg-opacity-10">
+                <UsersIcon className="w-6 h-6 text-blue-500" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Behavior Graph */}
+        <div className="h-80 relative">
+          {loading ? (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500"></div>
+            </div>
+          ) : (
+            <svg className="w-full h-full" viewBox="0 0 800 300">
+              {/* Background Grid */}
+              {[0, 1, 2, 3, 4, 5].map((i) => (
+                <g key={i}>
+                  <line
+                    x1="50"
+                    y1={i * 60}
+                    x2="750"
+                    y2={i * 60}
+                    stroke={darkMode ? '#2D3748' : '#E2E8F0'}
+                    strokeWidth="1"
+                  />
+                  <text
+                    x="30"
+                    y={300 - i * 60}
+                    fill={darkMode ? '#A0AEC0' : '#4A5568'}
+                    fontSize="12"
+                    textAnchor="end"
+                  >
+                    {i * 20}%
+                  </text>
+                </g>
+              ))}
+
+              {/* X-Axis Labels */}
+              {behaviorGraphData.sessionDuration.map((point, i) => (
+                <text
+                  key={i}
+                  x={50 + (i * (700 / (behaviorGraphData.sessionDuration.length - 1)))}
+                  y="290"
+                  fill={darkMode ? '#A0AEC0' : '#4A5568'}
+                  fontSize="12"
+                  textAnchor="middle"
+                >
+                  {point.date}
+                </text>
+              ))}
+
+              {/* Session Duration Line */}
+              <path
+                d={`M${behaviorGraphData.sessionDuration
+                  .map((point, i) => {
+                    const x = 50 + (i * (700 / (behaviorGraphData.sessionDuration.length - 1)));
+                    const y = 300 - (point.value * (240 / 100));
+                    return `${i === 0 ? 'M' : 'L'}${x},${y}`;
+                  })
+                  .join(' ')}`}
+                fill="none"
+                stroke="#48BB78"
+                strokeWidth="3"
+              />
+
+              {/* Bounce Rate Line */}
+              <path
+                d={`M${behaviorGraphData.bounceRate
+                  .map((point, i) => {
+                    const x = 50 + (i * (700 / (behaviorGraphData.bounceRate.length - 1)));
+                    const y = 300 - (point.value * (240 / 100));
+                    return `${i === 0 ? 'M' : 'L'}${x},${y}`;
+                  })
+                  .join(' ')}`}
+                fill="none"
+                stroke="#ED8936"
+                strokeWidth="3"
+              />
+
+              {/* Peak Hours Line */}
+              <path
+                d={`M${behaviorGraphData.peakHours
+                  .map((point, i) => {
+                    const x = 50 + (i * (700 / (behaviorGraphData.peakHours.length - 1)));
+                    const y = 300 - (point.value * (240 / 100));
+                    return `${i === 0 ? 'M' : 'L'}${x},${y}`;
+                  })
+                  .join(' ')}`}
+                fill="none"
+                stroke="#4299E1"
+                strokeWidth="3"
+              />
+            </svg>
+          )}
+        </div>
+
+        {/* Legend */}
+        <div className="flex justify-center space-x-6 mt-4">
+          <div className="flex items-center">
+            <div className="w-3 h-3 rounded-full bg-green-500 mr-2"></div>
+            <span className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Session Duration</span>
+          </div>
+          <div className="flex items-center">
+            <div className="w-3 h-3 rounded-full bg-orange-500 mr-2"></div>
+            <span className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Bounce Rate</span>
+          </div>
+          <div className="flex items-center">
+            <div className="w-3 h-3 rounded-full bg-blue-500 mr-2"></div>
+            <span className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Peak Hours</span>
+          </div>
+        </div>
+
+        {/* Last Updated */}
+        <div className="text-right mt-4">
+          <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+            Last Updated: {userBehaviorStats.lastUpdated ? new Date(userBehaviorStats.lastUpdated.toDate()).toLocaleString('tr-TR') : 'N/A'}
+          </span>
+        </div>
+      </div>
+      
+      {/* Operating System Stats yerine Ad Position Stats */}
+      <div className={`rounded-lg p-6 mb-6 shadow-lg ${darkMode ? 'bg-dark-800' : 'bg-white border border-gray-200'}`}>
+        <div className="flex justify-between items-center mb-6">
+          <h2 className={`text-xl font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>Ad Position Stats</h2>
+          <div className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+            Last Updated: {adStats.lastUpdated ? new Date(adStats.lastUpdated.toDate()).toLocaleString('tr-TR') : 'N/A'}
+          </div>
+        </div>
+        {adStats && adStats.positionStats ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+            {Object.entries(adStats.positionStats).map(([position, stats]) => {
+              const ctr = stats.impressions > 0 ? (stats.clicks / stats.impressions) * 100 : 0;
+              const gradientColor = position.includes('video') ? 'from-purple-500 to-pink-500' :
+                                  position === 'sidebar' ? 'from-blue-500 to-cyan-500' :
+                                  position === 'header' ? 'from-green-500 to-emerald-500' :
+                                  position === 'footer' ? 'from-orange-500 to-yellow-500' :
+                                  position === 'left' ? 'from-indigo-500 to-blue-500' :
+                                  'from-red-500 to-pink-500';
+              
+              return (
+                <div key={position} className={`p-4 rounded-xl ${darkMode ? 'bg-dark-700' : 'bg-gray-50'}`}>
+                  <div className="flex justify-between items-center mb-3">
+                    <div>
+                      <h3 className={`text-lg font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                        {position.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+                      </h3>
+                      <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                        {(stats?.clicks || 0).toLocaleString()} clicks • {(stats?.impressions || 0).toLocaleString()} views
+                      </p>
+                    </div>
+                    <div className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                      {ctr.toFixed(1)}%
+                    </div>
+                  </div>
+                  <div className={`w-full h-3 rounded-full ${darkMode ? 'bg-dark-600' : 'bg-gray-200'} overflow-hidden`}>
+                    <div 
+                      className={`h-full rounded-full bg-gradient-to-r ${gradientColor} transition-all duration-500 ease-out`}
+                      style={{ 
+                        width: `${Math.min(ctr * 2, 100)}%`,
+                        boxShadow: '0 0 10px rgba(0,0,0,0.1)'
+                      }}
+                    ></div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         ) : (
           <div className="text-center py-8">
-            <p className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Operating system statistics are not available yet.</p>
-            <p className={`text-sm mt-2 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>Data will be collected from the main site.</p>
+            <div className={`rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center ${darkMode ? 'bg-dark-700' : 'bg-gray-100'}`}>
+              <EyeIcon className={`w-8 h-8 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} />
+            </div>
+            <p className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Ad position statistics are not available yet.</p>
+            <p className={`text-sm mt-2 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>Data will be collected as ads are viewed and clicked.</p>
           </div>
         )}
       </div>
       
       {/* Country Statistics and Category Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Country Statistics */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+        {/* Ad Performance Statistics */}
         <div className={`rounded-lg p-6 shadow-lg ${darkMode ? 'bg-dark-800' : 'bg-white border border-gray-200'}`}>
-          <h2 className={`text-lg font-semibold mb-4 uppercase ${darkMode ? 'text-white' : 'text-gray-900'}`}>Country Stats</h2>
-          {countryStats.length > 0 ? (
-            <div className="space-y-4">
-              {countryStats.map((country, index) => (
-                <div key={index} className="flex justify-between items-center">
-                  <div className="flex items-center">
-                    <span className="text-xl mr-2">{country.flag}</span>
-                    <span className={darkMode ? 'text-gray-300' : 'text-gray-700'}>{country.name}</span>
-                  </div>
-                  <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>{country.value}</span>
+          <h2 className={`text-lg font-semibold mb-4 uppercase ${darkMode ? 'text-white' : 'text-gray-900'}`}>Ad Performance</h2>
+          <div className="space-y-6">
+            {/* CTR Stats */}
+            <div>
+              <div className="flex justify-between items-center mb-2">
+                <div>
+                  <p className={`text-sm font-medium ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Click Through Rate (CTR)</p>
+                  <h3 className={`text-2xl font-bold text-green-500`}>
+                    {(adStats.ctr || 0).toFixed(2)}%
+                  </h3>
                 </div>
-              ))}
+                <div className="p-3 rounded-full bg-green-500 bg-opacity-10">
+                  <HandThumbUpIcon className="w-6 h-6 text-green-500" />
+                </div>
+              </div>
+              <div className={`w-full rounded-full h-2 ${darkMode ? 'bg-dark-700' : 'bg-gray-200'}`}>
+                <div 
+                  className="h-2 rounded-full bg-green-500"
+                  style={{ width: `${Math.min((adStats.ctr || 0), 100)}%` }}
+                ></div>
+              </div>
             </div>
-          ) : (
-            <div className="text-center py-8">
-              <p className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Country statistics are not available yet.</p>
-              <p className={`text-sm mt-2 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>Data will be collected from the main site.</p>
+
+            {/* Impressions per Page Stats */}
+            <div>
+              <div className="flex justify-between items-center mb-2">
+                <div>
+                  <p className={`text-sm font-medium ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Impressions per Page</p>
+                  <h3 className={`text-2xl font-bold text-blue-500`}>
+                    {Math.round(adStats.impressionsPerPage || 0)}
+                  </h3>
+                </div>
+                <div className="p-3 rounded-full bg-blue-500 bg-opacity-10">
+                  <EyeIcon className="w-6 h-6 text-blue-500" />
+                </div>
+              </div>
+              <div className={`w-full rounded-full h-2 ${darkMode ? 'bg-dark-700' : 'bg-gray-200'}`}>
+                <div 
+                  className="h-2 rounded-full bg-blue-500"
+                  style={{ width: `${Math.min((adStats.impressionsPerPage || 0) * 10, 100)}%` }}
+                ></div>
+              </div>
             </div>
-          )}
+
+            {/* Last Updated */}
+            <div className="text-right mt-4">
+              <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                Last Updated: {adStats.lastUpdated ? new Date(adStats.lastUpdated.toDate()).toLocaleString('tr-TR') : 'N/A'}
+              </span>
+            </div>
+          </div>
         </div>
         
         {/* Most Popular Categories */}
@@ -505,8 +1075,8 @@ const Dashboard = () => {
               </div>
               
               {/* Category Description */}
-              <div className="grid grid-cols-2 gap-2 mt-4">
-                {categoryStats.map((category, index) => (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 mt-4">
+                {categoryStats.slice(0, 6).map((category, index) => (
                   <div key={index} className="flex items-center justify-between">
                     <div className="flex items-center">
                       <div className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: category.color }}></div>

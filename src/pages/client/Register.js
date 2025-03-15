@@ -23,16 +23,16 @@ const Register = () => {
       await registerUser(data.email, data.password, data.displayName);
       navigate('/');
     } catch (error) {
-      console.error('Kayıt olurken hata oluştu:', error);
+      console.error('Error during registration:', error);
       
       if (error.code === 'auth/email-already-in-use') {
-        setError('Bu e-posta adresi zaten kullanılıyor.');
+        setError('This email address is already in use.');
       } else if (error.code === 'auth/invalid-email') {
-        setError('Geçersiz e-posta adresi.');
+        setError('Invalid email address.');
       } else if (error.code === 'auth/weak-password') {
-        setError('Şifre çok zayıf. Lütfen daha güçlü bir şifre seçin.');
+        setError('Password is too weak. Please choose a stronger password.');
       } else {
-        setError('Kayıt olurken bir hata oluştu. Lütfen tekrar deneyin.');
+        setError('An error occurred during registration. Please try again.');
       }
     } finally {
       setLoading(false);
@@ -42,7 +42,7 @@ const Register = () => {
   return (
     <div className="max-w-md mx-auto">
       <div className="bg-dark-700 rounded-lg shadow-lg p-6">
-        <h1 className="text-2xl font-bold text-white mb-6 text-center">Kayıt Ol</h1>
+        <h1 className="text-2xl font-bold text-white mb-6 text-center">Register</h1>
         
         {error && (
           <div className="bg-red-500 bg-opacity-20 border border-red-500 text-red-500 px-4 py-3 rounded mb-4">
@@ -52,17 +52,17 @@ const Register = () => {
         
         <form onSubmit={handleSubmit(onSubmit)}>
           <div className="mb-4">
-            <label htmlFor="displayName" className="block text-gray-300 mb-2">Kullanıcı Adı</label>
+            <label htmlFor="displayName" className="block text-gray-300 mb-2">Username</label>
             <input
               id="displayName"
               type="text"
               className="input"
-              placeholder="Kullanıcı adınız"
+              placeholder="Your username"
               {...register('displayName', { 
-                required: 'Kullanıcı adı gereklidir',
+                required: 'Username is required',
                 minLength: {
                   value: 3,
-                  message: 'Kullanıcı adı en az 3 karakter olmalıdır'
+                  message: 'Username must be at least 3 characters'
                 }
               })}
             />
@@ -72,17 +72,17 @@ const Register = () => {
           </div>
           
           <div className="mb-4">
-            <label htmlFor="email" className="block text-gray-300 mb-2">E-posta</label>
+            <label htmlFor="email" className="block text-gray-300 mb-2">Email</label>
             <input
               id="email"
               type="email"
               className="input"
-              placeholder="E-posta adresiniz"
+              placeholder="Your email address"
               {...register('email', { 
-                required: 'E-posta adresi gereklidir',
+                required: 'Email address is required',
                 pattern: {
                   value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
-                  message: 'Geçerli bir e-posta adresi giriniz'
+                  message: 'Please enter a valid email address'
                 }
               })}
             />
@@ -92,18 +92,18 @@ const Register = () => {
           </div>
           
           <div className="mb-4">
-            <label htmlFor="password" className="block text-gray-300 mb-2">Şifre</label>
+            <label htmlFor="password" className="block text-gray-300 mb-2">Password</label>
             <div className="relative">
               <input
                 id="password"
                 type={showPassword ? 'text' : 'password'}
                 className="input pr-10"
-                placeholder="Şifreniz"
+                placeholder="Your password"
                 {...register('password', { 
-                  required: 'Şifre gereklidir',
+                  required: 'Password is required',
                   minLength: {
                     value: 8,
-                    message: 'Şifre en az 8 karakter olmalıdır'
+                    message: 'Password must be at least 8 characters'
                   }
                 })}
               />
@@ -124,17 +124,17 @@ const Register = () => {
             )}
           </div>
           
-          <div className="mb-6">
-            <label htmlFor="confirmPassword" className="block text-gray-300 mb-2">Şifre Tekrar</label>
+          <div className="mb-4">
+            <label htmlFor="confirmPassword" className="block text-gray-300 mb-2">Confirm Password</label>
             <div className="relative">
               <input
                 id="confirmPassword"
                 type={showConfirmPassword ? 'text' : 'password'}
                 className="input pr-10"
-                placeholder="Şifrenizi tekrar girin"
+                placeholder="Re-enter your password"
                 {...register('confirmPassword', { 
-                  required: 'Şifre tekrarı gereklidir',
-                  validate: value => value === password || 'Şifreler eşleşmiyor'
+                  required: 'Password confirmation is required',
+                  validate: value => value === password || 'Passwords do not match'
                 })}
               />
               <button
@@ -165,17 +165,17 @@ const Register = () => {
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                Kayıt Olunuyor...
+                Registering...
               </span>
             ) : (
-              'Kayıt Ol'
+              'Register'
             )}
           </button>
         </form>
         
         <div className="mt-4 text-center">
           <p className="text-gray-400">
-            Zaten hesabınız var mı? <Link to="/login" className="text-primary-500 hover:text-primary-400">Giriş Yap</Link>
+            Already have an account? <Link to="/login" className="text-primary-500 hover:text-primary-400">Login</Link>
           </p>
         </div>
       </div>

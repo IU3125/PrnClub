@@ -7,7 +7,7 @@
   background-color: rgba(0, 0, 0, 0.1);
 }
 
-/* New modern ad wrapper styles */
+/* Modern ad wrapper styles */
 .ad-wrapper {
   position: relative;
   border-radius: 0.5rem;
@@ -18,12 +18,17 @@
   padding: 2px;
 }
 
-.ad-wrapper:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+/* Side advertisement wrapper styles */
+.ad-wrapper-side {
+  position: relative;
+  overflow: hidden;
+  background-color: rgba(0, 0, 0, 0.2);
+  transition: all 0.3s ease;
+  height: 600px;
+  max-height: calc(100vh - 80px); /* Ensure it doesn't exceed viewport minus header */
 }
 
-.ad-wrapper::before {
+.ad-wrapper-side::before {
   content: '';
   position: absolute;
   top: 0;
@@ -34,49 +39,36 @@
   z-index: 1;
 }
 
-/* Video ad container styles */
-.ad-container-video {
-  width: 100%;
-  max-width: 100%;
-  margin: 0;
-  border-radius: 0;
+.ad-wrapper:hover,
+.ad-wrapper-side:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Container styles for left and right ads */
+.ad-container-left,
+.ad-container-right {
+  position: absolute;
+  bottom: 0;
+  width: 160px;
+  height: 600px;
+  max-height: calc(100vh - 80px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   overflow: hidden;
-  background-color: rgba(0, 0, 0, 0.2);
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  z-index: 50;
+  transition: opacity 0.3s ease;
 }
 
 .ad-container-left {
-  position: fixed;
   left: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 50;
-  margin: 0;
-  padding: 0;
-  width: 160px;
-  height: 600px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: visible;
-  border-radius: 0 0.5rem 0.5rem 0;
+  border-radius: 0 0.5rem 0 0;
 }
 
 .ad-container-right {
-  position: fixed;
   right: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 50;
-  margin: 0;
-  padding: 0;
-  width: 160px;
-  height: 600px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: visible;
-  border-radius: 0.5rem 0 0 0.5rem;
+  border-radius: 0.5rem 0 0 0;
 }
 
 .ad-media {
@@ -185,10 +177,21 @@
   }
 }
 
-/* Responsive adjustments for ads */
+/* Responsive adjustments */
 @media (max-width: 1400px) {
-  .ad-container-left, .ad-container-right {
+  .ad-container-left,
+  .ad-container-right,
+  .ad-wrapper-side {
     display: none;
+  }
+}
+
+/* Ensure ads don't overflow footer on smaller heights */
+@media (max-height: 800px) {
+  .ad-container-left,
+  .ad-container-right,
+  .ad-wrapper-side {
+    height: 400px;
   }
 }
 

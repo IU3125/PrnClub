@@ -20,7 +20,7 @@ const Profile = () => {
   
   const { register, handleSubmit, formState: { errors }, setValue } = useForm();
 
-  // Admin verilerini getir
+  // Get admin data
   useEffect(() => {
     const fetchAdminData = async () => {
       setLoading(true);
@@ -31,8 +31,8 @@ const Profile = () => {
           setValue('displayName', adminDoc.data().displayName || '');
         }
       } catch (error) {
-        console.error('Admin verileri getirilirken hata oluştu:', error);
-        setError('Admin verileri getirilirken bir hata oluştu.');
+        console.error('Error fetching admin data:', error);
+        setError('An error occurred while fetching admin data.');
       } finally {
         setLoading(false);
       }
@@ -41,7 +41,7 @@ const Profile = () => {
     fetchAdminData();
   }, [currentUser, setValue]);
 
-  // Profil güncelleme
+  // Update profile
   const handleUpdateProfile = async (data) => {
     setError('');
     setSuccess('');
@@ -51,14 +51,14 @@ const Profile = () => {
         displayName: data.displayName
       });
       
-      setSuccess('Profil başarıyla güncellendi.');
+      setSuccess('Profile updated successfully.');
     } catch (error) {
-      console.error('Profil güncellenirken hata oluştu:', error);
-      setError('Profil güncellenirken bir hata oluştu.');
+      console.error('Error updating profile:', error);
+      setError('An error occurred while updating the profile.');
     }
   };
 
-  // Şifre sıfırlama e-postası gönder
+  // Send password reset email
   const handleResetPassword = async () => {
     setError('');
     setSuccess('');
@@ -67,21 +67,21 @@ const Profile = () => {
     try {
       await resetPassword(currentUser.email);
       setResetSent(true);
-      setSuccess('Şifre sıfırlama bağlantısı e-posta adresinize gönderildi.');
+      setSuccess('Password reset link has been sent to your email.');
     } catch (error) {
-      console.error('Şifre sıfırlama e-postası gönderilirken hata oluştu:', error);
-      setError('Şifre sıfırlama e-postası gönderilirken bir hata oluştu.');
+      console.error('Error sending password reset email:', error);
+      setError('An error occurred while sending password reset email.');
     }
   };
 
-  // Çıkış yap
+  // Logout
   const handleLogout = async () => {
     try {
       await logout();
       navigate('/admin/login');
     } catch (error) {
-      console.error('Çıkış yapılırken hata oluştu:', error);
-      setError('Çıkış yapılırken bir hata oluştu.');
+      console.error('Error during logout:', error);
+      setError('An error occurred while logging out.');
     }
   };
 
@@ -95,7 +95,7 @@ const Profile = () => {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-white mb-6">Admin Profili</h1>
+      <h1 className="text-2xl font-bold text-white mb-6">Admin Profile</h1>
       
       {error && (
         <div className="bg-red-500 bg-opacity-20 border border-red-500 text-red-500 px-4 py-3 rounded mb-4">
@@ -118,7 +118,7 @@ const Profile = () => {
             </h2>
             <p className="text-gray-400">{currentUser.email}</p>
             <p className="text-primary-500 text-sm mt-1">
-              {adminData?.role === 'admin' ? 'Tam Yetkili Admin' : 'Reklam Yöneticisi'}
+              {adminData?.role === 'admin' ? 'Full Access Admin' : 'Advertising Manager'}
             </p>
           </div>
         </div>
@@ -126,17 +126,17 @@ const Profile = () => {
         <form onSubmit={handleSubmit(handleUpdateProfile)}>
           <div className="mb-4">
             <label htmlFor="displayName" className="block text-gray-300 mb-2">
-              Admin Adı
+              Admin Name
             </label>
             <input
               id="displayName"
               type="text"
               className="input"
               {...register('displayName', { 
-                required: 'Admin adı gereklidir',
+                required: 'Admin name is required',
                 minLength: {
                   value: 3,
-                  message: 'Admin adı en az 3 karakter olmalıdır'
+                  message: 'Admin name must be at least 3 characters'
                 }
               })}
             />
@@ -150,7 +150,7 @@ const Profile = () => {
               type="submit"
               className="btn btn-primary mb-4 md:mb-0"
             >
-              Profili Güncelle
+              Update Profile
             </button>
             
             <div className="flex flex-col md:flex-row space-y-4 md:space-y-0 md:space-x-4">
@@ -160,7 +160,7 @@ const Profile = () => {
                 className="flex items-center justify-center btn btn-dark"
               >
                 <KeyIcon className="w-5 h-5 mr-2" />
-                Şifre Sıfırla
+                Reset Password
               </button>
             </div>
           </div>

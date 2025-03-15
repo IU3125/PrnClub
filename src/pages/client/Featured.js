@@ -151,11 +151,7 @@ const Featured = () => {
         )}
       </div>
       
-      {/* Left Ad - Fixed Position */}
-      <AdDisplay position="left" />
       
-      {/* Right Ad - Fixed Position */}
-      <AdDisplay position="right" />
     </div>
   );
 };

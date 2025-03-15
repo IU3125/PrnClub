@@ -10,10 +10,14 @@ import {
 } from '@heroicons/react/24/outline';
 import { HeartIcon as HeartIconSolid } from '@heroicons/react/24/solid';
 import Logo from './Logo';
+import FilterBar from '../ui/FilterBar';
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [activeFilter, setActiveFilter] = useState('newest');
+  const [activeCategory, setActiveCategory] = useState('all');
+  const [activePornstar, setActivePornstar] = useState('all');
   const { currentUser, userData, logout } = useAuth();
   const navigate = useNavigate();
   
@@ -23,8 +27,9 @@ const Header = () => {
   const handleSearch = (e) => {
     e.preventDefault();
     if (searchQuery.trim()) {
-      navigate(`/?search=${encodeURIComponent(searchQuery)}`);
-      setSearchQuery('');
+      // Arama sorgusunu küçük harfe çevirip URL'e ekle
+      const query = searchQuery.trim().toLowerCase();
+      navigate(`/?search=${encodeURIComponent(query)}`);
     }
   };
 
@@ -38,7 +43,8 @@ const Header = () => {
   };
 
   return (
-    <header className="bg-dark-700 shadow-md">
+    <header className="bg-gradient-to-b from-dark-900 to-dark-800">
+      {/* Main Header */}
       <div className="container mx-auto px-4 py-3">
         <div className="flex items-center justify-between">
           {/* Logo */}
@@ -51,13 +57,13 @@ const Header = () => {
                 <input
                   type="text"
                   placeholder="Search videos..."
-                  className="w-full py-2 pl-4 pr-10 bg-dark-800 border-dark-600 text-white border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full py-2.5 pl-4 pr-10 bg-dark-800/50 border-dark-600 text-white border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
                 <button
                   type="submit"
-                  className="absolute right-0 top-0 h-full px-3 text-gray-400 hover:text-white"
+                  className="absolute right-0 top-0 h-full px-3 text-gray-400 hover:text-white transition-colors duration-200"
                 >
                   <MagnifyingGlassIcon className="w-5 h-5" />
                 </button>
@@ -105,36 +111,32 @@ const Header = () => {
           </div>
 
           {/* Mobile Menu Button */}
-          <div className="md:hidden flex items-center space-x-2">
-            <button
-              onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="text-gray-300 hover:text-white focus:outline-none"
-            >
-              {isMenuOpen ? (
-                <XMarkIcon className="w-6 h-6" />
-              ) : (
-                <Bars3Icon className="w-6 h-6" />
-              )}
-            </button>
-          </div>
+          <button
+            onClick={() => setIsMenuOpen(!isMenuOpen)}
+            className="md:hidden p-2 text-gray-400 hover:text-white transition-colors duration-200"
+          >
+            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={isMenuOpen ? "M6 18L18 6M6 6l12 12" : "M4 6h16M4 12h16M4 18h16"} />
+            </svg>
+          </button>
         </div>
 
         {/* Mobile Menu */}
         {isMenuOpen && (
-          <div className="md:hidden mt-4 bg-dark-700 rounded-md shadow-lg p-4">
+          <div className="md:hidden mt-4 bg-dark-700 rounded-xl shadow-lg p-4">
             {/* Search Bar - Mobile */}
             <form onSubmit={handleSearch} className="mb-4">
               <div className="relative">
                 <input
                   type="text"
                   placeholder="Search videos..."
-                  className="w-full py-2 pl-4 pr-10 bg-dark-800 border-dark-600 text-white border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full py-2.5 pl-4 pr-10 bg-dark-800/50 border-dark-600 text-white border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
                 <button
                   type="submit"
-                  className="absolute right-0 top-0 h-full px-3 text-gray-400 hover:text-white"
+                  className="absolute right-0 top-0 h-full px-3 text-gray-400 hover:text-white transition-colors duration-200"
                 >
                   <MagnifyingGlassIcon className="w-5 h-5" />
                 </button>
@@ -204,6 +206,20 @@ const Header = () => {
             </div>
           </div>
         )}
+      </div>
+
+      {/* Filter Bar Integration */}
+      <div className="border-t border-dark-700/50">
+        <div className="container mx-auto px-4">
+          <FilterBar
+            activeFilter={activeFilter}
+            setActiveFilter={setActiveFilter}
+            activeCategory={activeCategory}
+            setActiveCategory={setActiveCategory}
+            activePornstar={activePornstar}
+            setActivePornstar={setActivePornstar}
+          />
+        </div>
       </div>
     </header>
   );

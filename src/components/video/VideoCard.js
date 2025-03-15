@@ -5,7 +5,7 @@ import { tr } from 'date-fns/locale';
 import { EyeIcon, ClockIcon } from '@heroicons/react/24/outline';
 
 const VideoCard = ({ video }) => {
-  // Video süresini biçimlendir (saniye cinsinden)
+  // Format duration (in seconds)
   const formatDuration = (seconds) => {
     if (!seconds && seconds !== 0) return '0:00';
     const minutes = Math.floor(seconds / 60);
@@ -13,9 +13,9 @@ const VideoCard = ({ video }) => {
     return `${minutes}:${remainingSeconds < 10 ? '0' : ''}${remainingSeconds}`;
   };
 
-  // İzlenme sayısını biçimlendir
+  // Format view count
   const formatViewCount = (count) => {
-    // Eğer count undefined veya null ise 0 olarak kabul et
+    // If count is undefined or null, treat as 0
     if (count === undefined || count === null) {
       return '0';
     }
@@ -28,7 +28,7 @@ const VideoCard = ({ video }) => {
     return count.toString();
   };
 
-  // Tarih biçimlendirme
+  // Format date
   const formatDate = (timestamp) => {
     if (!timestamp) return '';
     
@@ -48,7 +48,7 @@ const VideoCard = ({ video }) => {
             loading="lazy"
           />
           
-          {/* Süre etiketi */}
+          {/* Duration label */}
           <div className="absolute bottom-2 right-2 bg-black bg-opacity-70 text-white text-xs px-2 py-1 rounded">
             <span className="flex items-center">
               <ClockIcon className="w-3 h-3 mr-1" />
@@ -57,7 +57,7 @@ const VideoCard = ({ video }) => {
           </div>
         </div>
         
-        {/* Video bilgileri */}
+        {/* Video information */}
         <div className="p-3">
           <h3 className="text-white font-medium line-clamp-2 group-hover:text-primary-400 transition-colors">
             {video.title}

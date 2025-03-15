@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { collection, getDocs, doc, deleteDoc, updateDoc, query, orderBy, serverTimestamp, addDoc, where } from 'firebase/firestore';
+import React, { useState, useEffect, useRef } from 'react';
+import { collection, getDocs, doc, deleteDoc, updateDoc, query, orderBy, serverTimestamp, addDoc, where, increment } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../../firebase/config';
 import { 
@@ -58,6 +58,68 @@ const Videos = () => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
 
+  // Add state for suggestions
+  const [allCategories, setAllCategories] = useState([]);
+  const [allPornstars, setAllPornstars] = useState([]);
+  const [categorySuggestions, setCategorySuggestions] = useState([]);
+  const [pornstarSuggestions, setPornstarSuggestions] = useState([]);
+  const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(0);
+  const [showSuggestions, setShowSuggestions] = useState({
+    category: -1,
+    actor: -1
+  });
+
+  // Add refs for suggestion dropdowns
+  const categoryDropdownRef = useRef(null);
+  const actorDropdownRef = useRef(null);
+
+  // Handle click outside to close suggestion dropdowns
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (
+        categoryDropdownRef.current && 
+        !categoryDropdownRef.current.contains(event.target)
+      ) {
+        setShowSuggestions(prev => ({ ...prev, category: -1 }));
+      }
+      
+      if (
+        actorDropdownRef.current && 
+        !actorDropdownRef.current.contains(event.target)
+      ) {
+        setShowSuggestions(prev => ({ ...prev, actor: -1 }));
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  // Fetch categories and pornstars for suggestions
+  useEffect(() => {
+    const fetchCategoriesAndPornstars = async () => {
+      try {
+        // Fetch categories
+        const categoriesQuery = query(collection(db, 'categories'), orderBy('name', 'asc'));
+        const categoriesSnapshot = await getDocs(categoriesQuery);
+        const categoriesList = categoriesSnapshot.docs.map(doc => doc.data().name);
+        setAllCategories(categoriesList);
+        
+        // Fetch pornstars
+        const pornstarsQuery = query(collection(db, 'pornstars'), orderBy('name', 'asc'));
+        const pornstarsSnapshot = await getDocs(pornstarsQuery);
+        const pornstarsList = pornstarsSnapshot.docs.map(doc => doc.data().name);
+        setAllPornstars(pornstarsList);
+      } catch (error) {
+        console.error('Error fetching suggestions:', error);
+      }
+    };
+    
+    fetchCategoriesAndPornstars();
+  }, []);
+
   // Videoları getir
   useEffect(() => {
     const fetchVideos = async () => {
@@ -76,8 +138,8 @@ const Videos = () => {
         
         setVideos(videosList);
       } catch (error) {
-        console.error('Videolar getirilirken hata oluştu:', error);
-        setError('Videolar getirilirken bir hata oluştu.');
+        console.error('Error fetching videos:', error);
+        setError('An error occurred while fetching videos.');
       } finally {
         setLoading(false);
       }
@@ -88,7 +150,7 @@ const Videos = () => {
 
   // Video sil
   const handleDeleteVideo = async (videoId) => {
-    if (!window.confirm('Bu videoyu silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.')) {
+    if (!window.confirm('Are you sure you want to delete this video? This action cannot be undone.')) {
       return;
     }
     
@@ -99,10 +161,10 @@ const Videos = () => {
       // Videoyu listeden kaldır
       setVideos(videos.filter(video => video.id !== videoId));
       
-      setSuccess('Video başarıyla silindi.');
+      setSuccess('Video deleted successfully.');
     } catch (error) {
-      console.error('Video silinirken hata oluştu:', error);
-      setError('Video silinirken bir hata oluştu.');
+      console.error('Error deleting video:', error);
+      setError('An error occurred while deleting the video.');
     } finally {
       setLoading(false);
     }
@@ -137,80 +199,85 @@ const Videos = () => {
       setError('Thumbnail URL cannot be empty.');
       return;
     }
-    
-    if (!editForm.iframeCode.trim()) {
-      setError('Video iframe code cannot be empty.');
-      return;
-    }
-    
+
     setLoading(true);
+    setError('');
+    setSuccess('');
+
     try {
-      // Filter out empty values from arrays
-      const filteredCategories = editForm.categories.filter(cat => cat.trim() !== '');
-      const filteredActors = editForm.actors.filter(actor => actor.trim() !== '');
-      const filteredTags = editForm.tags.filter(tag => tag.trim() !== '');
-      
-      // Save categories, actors and tags to their respective collections for reuse
-      await Promise.all([
-        ...filteredCategories.map(async (category) => {
-          const categoryRef = collection(db, 'categories');
-          const q = query(categoryRef, where('name', '==', category));
-          const querySnapshot = await getDocs(q);
-          
-          if (querySnapshot.empty) {
-            await addDoc(categoryRef, { 
+      // Önce tüm kategorileri ve aktörleri ekle/güncelle
+      const promises = [];
+
+      // Kategorileri işle
+      for (const category of editForm.categories) {
+        const categoryRef = collection(db, 'categories');
+        const q = query(categoryRef, where('name', '==', category));
+        const querySnapshot = await getDocs(q);
+        
+        if (querySnapshot.empty) {
+          promises.push(
+            addDoc(categoryRef, {
               name: category,
-              createdAt: serverTimestamp() 
-            });
-          }
-        }),
-        ...filteredActors.map(async (actor) => {
-          const actorRef = collection(db, 'actors');
-          const q = query(actorRef, where('name', '==', actor));
-          const querySnapshot = await getDocs(q);
-          
-          if (querySnapshot.empty) {
-            await addDoc(actorRef, { 
+              videoCount: 1,
+              createdAt: new Date(),
+              updatedAt: new Date()
+            })
+          );
+        } else {
+          const categoryDoc = querySnapshot.docs[0];
+          promises.push(
+            updateDoc(doc(db, 'categories', categoryDoc.id), {
+              videoCount: increment(1),
+              updatedAt: new Date()
+            })
+          );
+        }
+      }
+
+      // Aktörleri işle
+      for (const actor of editForm.actors) {
+        const pornstarRef = collection(db, 'pornstars');
+        const q = query(pornstarRef, where('name', '==', actor));
+        const querySnapshot = await getDocs(q);
+        
+        if (querySnapshot.empty) {
+          promises.push(
+            addDoc(pornstarRef, {
               name: actor,
-              createdAt: serverTimestamp() 
-            });
-          }
-        }),
-        ...filteredTags.map(async (tag) => {
-          const tagRef = collection(db, 'tags');
-          const q = query(tagRef, where('name', '==', tag));
-          const querySnapshot = await getDocs(q);
-          
-          if (querySnapshot.empty) {
-            await addDoc(tagRef, { 
-              name: tag,
-              createdAt: serverTimestamp() 
-            });
-          }
-        })
-      ]);
-      
-      const videoRef = doc(db, 'videos', editingVideo);
-      const updatedData = {
+              videoCount: 1,
+              createdAt: new Date(),
+              updatedAt: new Date()
+            })
+          );
+        } else {
+          const pornstarDoc = querySnapshot.docs[0];
+          promises.push(
+            updateDoc(doc(db, 'pornstars', pornstarDoc.id), {
+              videoCount: increment(1),
+              updatedAt: new Date()
+            })
+          );
+        }
+      }
+
+      // Tüm kategori ve aktör işlemlerinin tamamlanmasını bekle
+      await Promise.all(promises);
+
+      // Videoyu güncelle
+      const videoRef = doc(db, 'videos', editForm.id);
+      await updateDoc(videoRef, {
         ...editForm,
-        categories: filteredCategories,
-        actors: filteredActors,
-        tags: filteredTags,
-        updatedAt: serverTimestamp(),
-        isActive: true, // Ensure the video is active on the main site
-      };
-      
-      await updateDoc(videoRef, updatedData);
-      
-      // Videoları listesini güncelle
+        updatedAt: serverTimestamp()
+      });
+
+      // Listeyi güncelle
       setVideos(videos.map(video => 
-        video.id === editingVideo 
-          ? { ...video, ...updatedData } 
-          : video
+        video.id === editForm.id ? { ...video, ...editForm } : video
       ));
-      
+
+      setSuccess('Video updated successfully!');
       setEditingVideo(null);
-      setSuccess('Video successfully updated and published to the main site.');
+      setEditForm(initialFormState);
     } catch (error) {
       console.error('Error updating video:', error);
       setError('An error occurred while updating the video.');
@@ -219,15 +286,15 @@ const Videos = () => {
     }
   };
 
-  // Tarih formatla
+  // Format date
   const formatDate = (timestamp) => {
-    if (!timestamp) return 'Belirtilmemiş';
+    if (!timestamp) return 'Not specified';
     
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
     return format(date, 'dd MMM yyyy, HH:mm', { locale: tr });
   };
   
-  // Süre formatla
+  // Format duration
   const formatDuration = (seconds) => {
     if (!seconds) return '00:00';
     
@@ -242,7 +309,7 @@ const Videos = () => {
     return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
   
-  // Arama filtresi
+  // Search filter
   const filteredVideos = videos.filter(video => {
     const searchLower = searchQuery.toLowerCase();
     return (
@@ -263,11 +330,46 @@ const Videos = () => {
   };
   
   // Array'e yeni item ekle
-  const handleAddArrayItem = (type) => {
-    setEditForm({
-      ...editForm,
-      [type]: [...editForm[type], '']
-    });
+  const handleAddArrayItem = async (type, value) => {
+    if (!value || !value.trim()) return;
+
+    try {
+      // Firebase'e ekle
+      const collectionName = type === 'categories' ? 'categories' : 'pornstars';
+      const itemRef = collection(db, collectionName);
+      
+      // Firebase'de var mı diye kontrol et
+      const q = query(itemRef, where('name', '==', value.trim()));
+      const querySnapshot = await getDocs(q);
+      
+      // Yoksa Firebase'e ekle
+      if (querySnapshot.empty) {
+        await addDoc(itemRef, {
+          name: value.trim(),
+          videoCount: 1,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        });
+      } else {
+        const itemDoc = querySnapshot.docs[0];
+        await updateDoc(doc(db, collectionName, itemDoc.id), {
+          videoCount: increment(1),
+          updatedAt: new Date()
+        });
+      }
+
+      // State'i güncelle
+      const newForm = { ...editForm };
+      if (!newForm[type].includes(value.trim())) {
+        newForm[type] = [...newForm[type].slice(0, -1), value.trim()];
+        setEditForm(newForm);
+      }
+
+      setSuccess(`${type === 'categories' ? 'Category' : 'Actor'} "${value}" added successfully!`);
+    } catch (err) {
+      console.error(`Error adding ${type}:`, err);
+      setError(`Failed to add ${type === 'categories' ? 'category' : 'actor'}: ${err.message}`);
+    }
   };
   
   // Array'den item kaldır
@@ -276,6 +378,77 @@ const Videos = () => {
       ...editForm,
       [type]: editForm[type].filter((_, i) => i !== index)
     });
+  };
+
+  // Kategori ve aktör input değişikliklerini yönet
+  const handleCategoryInputChange = (index, value, isEdit) => {
+    const formData = isEdit ? editForm : newVideo;
+    const setFormData = isEdit ? setEditForm : setNewVideo;
+
+    // Sadece input değerini güncelle, henüz kaydetme
+    setFormData({
+      ...formData,
+      categories: formData.categories.map((item, i) => i === index ? value : item)
+    });
+    
+    // Önerileri göster
+    if (value.trim() !== '') {
+      const filteredSuggestions = allCategories.filter(
+        category => category.toLowerCase().includes(value.toLowerCase())
+      );
+      setCategorySuggestions(filteredSuggestions);
+      setShowSuggestions(prev => ({ ...prev, category: index }));
+    } else {
+      setCategorySuggestions([]);
+      setShowSuggestions(prev => ({ ...prev, category: -1 }));
+    }
+  };
+
+  const handleActorInputChange = (index, value, isEdit) => {
+    const formData = isEdit ? editForm : newVideo;
+    const setFormData = isEdit ? setEditForm : setNewVideo;
+
+    // Sadece input değerini güncelle, henüz kaydetme
+    setFormData({
+      ...formData,
+      actors: formData.actors.map((item, i) => i === index ? value : item)
+    });
+    
+    // Önerileri göster
+    if (value.trim() !== '') {
+      const filteredSuggestions = allPornstars.filter(
+        actor => actor.toLowerCase().includes(value.toLowerCase())
+      );
+      setPornstarSuggestions(filteredSuggestions);
+      setShowSuggestions(prev => ({ ...prev, actor: index }));
+    } else {
+      setPornstarSuggestions([]);
+      setShowSuggestions(prev => ({ ...prev, actor: -1 }));
+    }
+  };
+
+  // Öneri seçimini yönet
+  const handleSelectSuggestion = (suggestion, type, index, isEdit) => {
+    const formData = isEdit ? editForm : newVideo;
+    const setFormData = isEdit ? setEditForm : setNewVideo;
+
+    // Seçilen öneriyi ekle
+    setFormData({
+      ...formData,
+      [type]: formData[type].map((item, i) => i === index ? suggestion : item)
+    });
+
+    // Önerileri temizle
+    if (type === 'category') {
+      setCategorySuggestions([]);
+      setShowSuggestions(prev => ({ ...prev, category: -1 }));
+    } else if (type === 'actor') {
+      setPornstarSuggestions([]);
+      setShowSuggestions(prev => ({ ...prev, actor: -1 }));
+    }
+
+    // Firebase'e ekle
+    handleAddArrayItem(type === 'category' ? 'categories' : 'actors', suggestion);
   };
 
   // Yeni video için array item değişikliği
@@ -329,6 +502,7 @@ const Videos = () => {
   const handleAddVideo = async (e) => {
     e.preventDefault();
     
+    // Validate required fields
     if (!newVideo.title.trim()) {
       setError('Video title cannot be empty.');
       return;
@@ -343,75 +517,116 @@ const Videos = () => {
       setError('Video iframe code cannot be empty.');
       return;
     }
+
+    // Filter out empty values from arrays
+    const filteredCategories = newVideo.categories.filter(cat => cat.trim() !== '');
+    const filteredActors = newVideo.actors.filter(actor => actor.trim() !== '');
+    const filteredTags = newVideo.tags.filter(tag => tag.trim() !== '');
+
+    // Validate required arrays
+    if (filteredCategories.length === 0) {
+      setError('At least one category is required.');
+      return;
+    }
+
+    if (filteredActors.length === 0) {
+      setError('At least one actor is required.');
+      return;
+    }
+
+    if (filteredTags.length === 0) {
+      setError('At least one tag is required.');
+      return;
+    }
     
     setIsUploading(true);
     setUploadProgress(0);
     
     try {
-      // Filter out empty values from arrays
-      const filteredCategories = newVideo.categories.filter(cat => cat.trim() !== '');
-      const filteredActors = newVideo.actors.filter(actor => actor.trim() !== '');
-      const filteredTags = newVideo.tags.filter(tag => tag.trim() !== '');
-      
-      // Save categories, actors and tags to their respective collections for reuse
-      await Promise.all([
-        ...filteredCategories.map(async (category) => {
-          const categoryRef = collection(db, 'categories');
-          const q = query(categoryRef, where('name', '==', category));
-          const querySnapshot = await getDocs(q);
-          
-          if (querySnapshot.empty) {
-            await addDoc(categoryRef, { 
-              name: category,
-              createdAt: serverTimestamp() 
-            });
-          }
-        }),
-        ...filteredActors.map(async (actor) => {
-          const actorRef = collection(db, 'actors');
-          const q = query(actorRef, where('name', '==', actor));
-          const querySnapshot = await getDocs(q);
-          
-          if (querySnapshot.empty) {
-            await addDoc(actorRef, { 
-              name: actor,
-              createdAt: serverTimestamp() 
-            });
-          }
-        }),
-        ...filteredTags.map(async (tag) => {
-          const tagRef = collection(db, 'tags');
-          const q = query(tagRef, where('name', '==', tag));
-          const querySnapshot = await getDocs(q);
-          
-          if (querySnapshot.empty) {
-            await addDoc(tagRef, { 
-              name: tag,
-              createdAt: serverTimestamp() 
-            });
-          }
-        })
-      ]);
+      // Validate that all categories exist and increment their counts
+      for (const category of filteredCategories) {
+        const categoryRef = collection(db, 'categories');
+        const q = query(categoryRef, where('name', '==', category));
+        const querySnapshot = await getDocs(q);
+        
+        if (querySnapshot.empty) {
+          setError(`Category "${category}" does not exist. Please add it first.`);
+          setIsUploading(false);
+          return;
+        } else {
+          // Increment category video count
+          const categoryDoc = querySnapshot.docs[0];
+          await updateDoc(doc(db, 'categories', categoryDoc.id), {
+            videoCount: increment(1)
+          });
+        }
+      }
+
+      // Validate that all actors exist and increment their counts
+      for (const actor of filteredActors) {
+        // Check in the pornstars collection instead of actors
+        const pornstarRef = collection(db, 'pornstars');
+        const q = query(pornstarRef, where('name', '==', actor));
+        const querySnapshot = await getDocs(q);
+        
+        if (querySnapshot.empty) {
+          setError(`Actor "${actor}" does not exist. Please add them first.`);
+          setIsUploading(false);
+          return;
+        } else {
+          // Increment pornstar video count
+          const pornstarDoc = querySnapshot.docs[0];
+          await updateDoc(doc(db, 'pornstars', pornstarDoc.id), {
+            videoCount: increment(1)
+          });
+        }
+      }
+
+      // For tags, we'll increment their counts if they exist, or create them if they don't
+      for (const tag of filteredTags) {
+        const tagRef = collection(db, 'tags');
+        const q = query(tagRef, where('name', '==', tag));
+        const querySnapshot = await getDocs(q);
+        
+        if (querySnapshot.empty) {
+          // Create new tag
+          await addDoc(collection(db, 'tags'), {
+            name: tag,
+            videoCount: 1,
+            createdAt: serverTimestamp()
+          });
+        } else {
+          // Increment tag video count
+          const tagDoc = querySnapshot.docs[0];
+          await updateDoc(doc(db, 'tags', tagDoc.id), {
+            videoCount: increment(1)
+          });
+        }
+      }
       
       // Video verisini oluştur
       const videoData = {
         title: newVideo.title,
+        titleLower: newVideo.title.toLowerCase(),
         description: newVideo.description,
         categories: filteredCategories,
+        categoriesLower: filteredCategories.map(cat => cat.toLowerCase()),
         actors: filteredActors,
+        actorsLower: filteredActors.map(actor => actor.toLowerCase()),
         tags: filteredTags,
+        tagsLower: filteredTags.map(tag => tag.toLowerCase()),
         featured: newVideo.featured,
         thumbnailUrl: newVideo.thumbnailUrl,
         iframeCode: newVideo.iframeCode,
-        duration: Math.floor(Math.random() * 600) + 60, // 1-10 dakika arası (örnek)
+        duration: Math.floor(Math.random() * 600) + 60,
         views: 0,
         likes: 0,
         dislikes: 0,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
-        isActive: true, // Make sure video is active and visible on the main site
-        publishedAt: serverTimestamp(), // Add publish date for the main site
-        blockAds: newVideo.blockAds, // Reklam engelleme seçeneği
+        isActive: true,
+        publishedAt: serverTimestamp(),
+        blockAds: newVideo.blockAds,
       };
       
       // Firestore'a ekle
@@ -437,7 +652,7 @@ const Videos = () => {
         featured: false,
         thumbnailUrl: '',
         iframeCode: '',
-        blockAds: true, // Reklam engelleme seçeneği
+        blockAds: true,
       });
       setVideoFile(null);
       setThumbnailFile(null);
@@ -448,17 +663,16 @@ const Videos = () => {
     } catch (error) {
       console.error('Error adding video:', error);
       setError('An error occurred while adding the video.');
-    } finally {
-      setIsUploading(false);
-      setUploadProgress(0);
     }
+    setIsUploading(false);
+    setUploadProgress(0);
   };
 
   // Main video list view
   const renderVideoList = () => {
     return (
-      <div className="bg-dark-800 rounded-lg p-6">
-        <div className="flex justify-between items-center mb-6">
+      <div className="bg-dark-800 rounded-lg p-4 sm:p-6">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 sm:gap-0 mb-6">
           <h1 className="text-2xl font-bold text-white">Videos</h1>
           
           <button
@@ -468,6 +682,93 @@ const Videos = () => {
             <PlusIcon className="h-5 w-5 mr-2" />
             Add Video
           </button>
+        </div>
+
+        {/* Category and Actor Management */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          <div className="bg-dark-700 p-4 rounded-lg">
+            <h2 className="text-lg font-semibold text-white mb-3">Categories</h2>
+            <div className="flex gap-2">
+              <div className="relative flex-grow">
+                <input
+                  type="text"
+                  className="w-full py-2 px-3 bg-dark-600 border border-dark-500 rounded-md text-white"
+                  placeholder="Search or add category"
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    const filtered = allCategories.filter(cat => 
+                      cat.toLowerCase().includes(value.toLowerCase())
+                    );
+                    setCategorySuggestions(filtered);
+                    setShowSuggestions(prev => ({ ...prev, category: 0 }));
+                  }}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      const value = e.target.value.trim();
+                      if (value) handleAddArrayItem('categories', value);
+                      e.target.value = '';
+                    }
+                  }}
+                />
+                {showSuggestions.category !== -1 && categorySuggestions.length > 0 && (
+                  <div className="absolute z-10 w-full mt-1 bg-dark-600 border border-dark-500 rounded-md shadow-lg max-h-60 overflow-auto">
+                    {categorySuggestions.map((category, index) => (
+                      <div
+                        key={index}
+                        className="px-3 py-2 text-sm text-white hover:bg-dark-500 cursor-pointer"
+                        onClick={() => handleAddArrayItem('categories', category)}
+                      >
+                        {category}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-dark-700 p-4 rounded-lg">
+            <h2 className="text-lg font-semibold text-white mb-3">Actors</h2>
+            <div className="flex gap-2">
+              <div className="relative flex-grow">
+                <input
+                  type="text"
+                  className="w-full py-2 px-3 bg-dark-600 border border-dark-500 rounded-md text-white"
+                  placeholder="Search or add actor"
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    const filtered = allPornstars.filter(actor => 
+                      actor.toLowerCase().includes(value.toLowerCase())
+                    );
+                    setPornstarSuggestions(filtered);
+                    setShowSuggestions(prev => ({ ...prev, actor: 0 }));
+                  }}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      const value = e.target.value.trim();
+                      if (value) handleAddArrayItem('actors', value);
+                      e.target.value = '';
+                    }
+                  }}
+                />
+                {showSuggestions.actor !== -1 && pornstarSuggestions.length > 0 && (
+                  <div className="absolute z-10 w-full mt-1 bg-dark-600 border border-dark-500 rounded-md shadow-lg max-h-60 overflow-auto">
+                    {pornstarSuggestions.map((actor, index) => (
+                      <div
+                        key={index}
+                        className="px-3 py-2 text-sm text-white hover:bg-dark-500 cursor-pointer"
+                        onClick={() => handleAddArrayItem('actors', actor)}
+                      >
+                        {actor}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
         
         {/* Search bar */}
@@ -492,92 +793,96 @@ const Videos = () => {
             <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
           </div>
         ) : filteredVideos.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-dark-600">
-              <thead className="bg-dark-700">
-                <tr>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                    Thumbnail
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                    Video Name
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                    Category
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                    Studio
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                    Actors name
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                    Tags
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wider">
-                    Action
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-dark-800 divide-y divide-dark-600">
-                {filteredVideos.map(video => (
-                  <tr key={video.id} className="hover:bg-dark-700">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="h-16 w-24 relative">
-                        <img 
-                          src={video.thumbnailUrl} 
-                          alt={video.title} 
-                          className="h-full w-full object-cover rounded"
-                        />
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-white">{video.title}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-white">
-                        {video.categories && video.categories.length > 0 
-                          ? video.categories[0] 
-                          : 'bla'}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-white">bla</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-white">
-                        {video.actors && video.actors.length > 0 
-                          ? video.actors[0] 
-                          : 'bla'}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-white">
-                        {video.tags && video.tags.length > 0 
-                          ? video.tags[0] 
-                          : 'bla'}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-center">
-                      <button
-                        onClick={() => handleEditVideo(video)}
-                        className="text-blue-500 hover:text-blue-400 mx-2"
-                        title="Edit"
-                      >
-                        <PencilIcon className="h-5 w-5" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteVideo(video.id)}
-                        className="text-red-500 hover:text-red-400 mx-2"
-                        title="Delete"
-                      >
-                        <TrashIcon className="h-5 w-5" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="overflow-x-auto -mx-4 sm:mx-0">
+            <div className="inline-block min-w-full align-middle">
+              <div className="overflow-hidden border border-dark-600 sm:rounded-lg">
+                <table className="min-w-full divide-y divide-dark-600">
+                  <thead className="bg-dark-700">
+                    <tr>
+                      <th scope="col" className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                        Thumbnail
+                      </th>
+                      <th scope="col" className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                        Video Name
+                      </th>
+                      <th scope="col" className="hidden md:table-cell px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                        Category
+                      </th>
+                      <th scope="col" className="hidden lg:table-cell px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                        Studio
+                      </th>
+                      <th scope="col" className="hidden lg:table-cell px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                        Actors name
+                      </th>
+                      <th scope="col" className="hidden md:table-cell px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                        Tags
+                      </th>
+                      <th scope="col" className="px-3 sm:px-6 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wider">
+                        Action
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-dark-800 divide-y divide-dark-600">
+                    {filteredVideos.map(video => (
+                      <tr key={video.id} className="hover:bg-dark-700">
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                          <div className="h-12 sm:h-16 w-16 sm:w-24 relative">
+                            <img 
+                              src={video.thumbnailUrl} 
+                              alt={video.title} 
+                              className="h-full w-full object-cover rounded"
+                            />
+                          </div>
+                        </td>
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                          <div className="text-xs sm:text-sm text-white">{video.title}</div>
+                        </td>
+                        <td className="hidden md:table-cell px-3 sm:px-6 py-4 whitespace-nowrap">
+                          <div className="text-xs sm:text-sm text-white">
+                            {video.categories && video.categories.length > 0 
+                              ? video.categories[0] 
+                              : 'bla'}
+                          </div>
+                        </td>
+                        <td className="hidden lg:table-cell px-3 sm:px-6 py-4 whitespace-nowrap">
+                          <div className="text-xs sm:text-sm text-white">bla</div>
+                        </td>
+                        <td className="hidden lg:table-cell px-3 sm:px-6 py-4 whitespace-nowrap">
+                          <div className="text-xs sm:text-sm text-white">
+                            {video.actors && video.actors.length > 0 
+                              ? video.actors[0] 
+                              : 'bla'}
+                          </div>
+                        </td>
+                        <td className="hidden md:table-cell px-3 sm:px-6 py-4 whitespace-nowrap">
+                          <div className="text-xs sm:text-sm text-white">
+                            {video.tags && video.tags.length > 0 
+                              ? video.tags[0] 
+                              : 'bla'}
+                          </div>
+                        </td>
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-center">
+                          <button
+                            onClick={() => handleEditVideo(video)}
+                            className="text-blue-500 hover:text-blue-400 mx-2"
+                            title="Edit"
+                          >
+                            <PencilIcon className="h-5 w-5" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteVideo(video.id)}
+                            className="text-red-500 hover:text-red-400 mx-2"
+                            title="Delete"
+                          >
+                            <TrashIcon className="h-5 w-5" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         ) : (
           <div className="bg-dark-700 rounded-lg p-8 text-center">
@@ -598,18 +903,212 @@ const Videos = () => {
   const renderVideoForm = (isEdit = false) => {
     const formData = isEdit ? editForm : newVideo;
     const setFormData = isEdit ? setEditForm : setNewVideo;
-    const handleSubmit = isEdit ? handleSubmitEdit : handleAddVideo;
-    const handleItemChange = isEdit ? handleArrayItemChange : handleNewVideoArrayItemChange;
-    const handleAddItem = isEdit ? handleAddArrayItem : handleAddNewVideoArrayItem;
-    const handleRemoveItem = isEdit ? handleRemoveArrayItem : handleRemoveNewVideoArrayItem;
-    
+
     return (
-      <div className="bg-dark-800 rounded-lg p-6">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold text-white">
-            {isEdit ? 'Edit Video' : 'Add New Video'}
-          </h1>
-          
+      <div className="bg-dark-700 rounded-lg p-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-gray-400 mb-1">Title *</label>
+            <input
+              type="text"
+              className="w-full py-2 px-3 bg-dark-600 border border-dark-500 rounded-md text-white"
+              value={formData.title}
+              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-gray-400 mb-1">Description</label>
+            <textarea
+              className="w-full py-2 px-3 bg-dark-600 border border-dark-500 rounded-md text-white"
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              rows="3"
+            />
+          </div>
+
+          <div>
+            <label className="block text-gray-400 mb-1">Categories *</label>
+            <div className="flex flex-wrap gap-2 mb-2">
+              {formData.categories.map((category, index) => (
+                <span key={index} className="bg-dark-600 text-white px-2 py-1 rounded flex items-center">
+                  {category}
+                  <button
+                    onClick={() => handleRemoveArrayItem('categories', index)}
+                    className="ml-1 text-red-500 hover:text-red-400"
+                  >
+                    <TrashIcon className="h-4 w-4" />
+                  </button>
+                </span>
+              ))}
+            </div>
+            <div className="flex flex-col gap-2">
+              {formData.categories.length > 0 && formData.categories[formData.categories.length - 1] === '' && (
+                <input
+                  type="text"
+                  className="w-full py-1 px-2 bg-dark-600 border border-dark-500 rounded text-white text-sm"
+                  placeholder="Type new category name and press Enter"
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      const value = e.target.value.trim();
+                      if (value) {
+                        handleAddArrayItem('categories', value);
+                        // Boş string'i kaldır
+                        const newCategories = formData.categories.filter(cat => cat !== '');
+                        setFormData({
+                          ...formData,
+                          categories: newCategories
+                        });
+                      }
+                      e.target.value = '';
+                    }
+                  }}
+                />
+              )}
+              <button
+                onClick={() => {
+                  setFormData({
+                    ...formData,
+                    categories: [...formData.categories, '']
+                  });
+                }}
+                className="bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded flex items-center justify-center"
+                title="Add New Category"
+              >
+                <PlusIcon className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-gray-400 mb-1">Actors *</label>
+            <div className="flex flex-wrap gap-2 mb-2">
+              {formData.actors.map((actor, index) => (
+                <span key={index} className="bg-dark-600 text-white px-2 py-1 rounded flex items-center">
+                  {actor}
+                  <button
+                    onClick={() => handleRemoveArrayItem('actors', index)}
+                    className="ml-1 text-red-500 hover:text-red-400"
+                  >
+                    <TrashIcon className="h-4 w-4" />
+                  </button>
+                </span>
+              ))}
+            </div>
+            <div className="flex flex-col gap-2">
+              {formData.actors.length > 0 && formData.actors[formData.actors.length - 1] === '' && (
+                <input
+                  type="text"
+                  className="w-full py-1 px-2 bg-dark-600 border border-dark-500 rounded text-white text-sm"
+                  placeholder="Type new actor name and press Enter"
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      const value = e.target.value.trim();
+                      if (value) {
+                        handleAddArrayItem('actors', value);
+                        // Boş string'i kaldır
+                        const newActors = formData.actors.filter(actor => actor !== '');
+                        setFormData({
+                          ...formData,
+                          actors: newActors
+                        });
+                      }
+                      e.target.value = '';
+                    }
+                  }}
+                />
+              )}
+              <button
+                onClick={() => {
+                  setFormData({
+                    ...formData,
+                    actors: [...formData.actors, '']
+                  });
+                }}
+                className="bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded flex items-center justify-center"
+                title="Add New Actor"
+              >
+                <PlusIcon className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-gray-400 mb-1">Tags</label>
+            <div className="flex flex-wrap gap-2 mb-2">
+              {formData.tags.map((tag, index) => (
+                <span key={index} className="bg-dark-600 text-white px-2 py-1 rounded flex items-center">
+                  {tag}
+                  <button
+                    onClick={() => handleRemoveArrayItem('tags', index)}
+                    className="ml-1 text-red-500 hover:text-red-400"
+                  >
+                    <TrashIcon className="h-4 w-4" />
+                  </button>
+                </span>
+              ))}
+            </div>
+            <div className="flex gap-1">
+              <input
+                type="text"
+                className="flex-grow py-1 px-2 bg-dark-600 border border-dark-500 rounded text-white text-sm"
+                placeholder="Add tag and press Enter"
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const value = e.target.value.trim();
+                    if (value && !formData.tags.includes(value)) {
+                      setFormData({
+                        ...formData,
+                        tags: [...formData.tags, value]
+                      });
+                      e.target.value = '';
+                    }
+                  }
+                }}
+              />
+            </div>
+          </div>
+
+          <div className="md:col-span-2">
+            <label className="block text-gray-400 mb-1">Iframe Code *</label>
+            <textarea
+              className="w-full py-2 px-3 bg-dark-600 border border-dark-500 rounded-md text-white font-mono text-sm"
+              value={formData.iframeCode}
+              onChange={(e) => setFormData({ ...formData, iframeCode: e.target.value })}
+              rows="3"
+              required
+            />
+          </div>
+
+          <div className="md:col-span-2">
+            <label className="block text-gray-400 mb-1">Thumbnail URL *</label>
+            <input
+              type="text"
+              className="w-full py-2 px-3 bg-dark-600 border border-dark-500 rounded-md text-white"
+              value={formData.thumbnailUrl}
+              onChange={(e) => setFormData({ ...formData, thumbnailUrl: e.target.value })}
+              required
+            />
+          </div>
+
+          <div className="md:col-span-2">
+            <label className="flex items-center space-x-2 text-gray-400">
+              <input
+                type="checkbox"
+                className="form-checkbox h-4 w-4"
+                checked={formData.blockAds}
+                onChange={(e) => setFormData({ ...formData, blockAds: e.target.checked })}
+              />
+              <span>Block iframe ads (may cause issues with some video providers)</span>
+            </label>
+          </div>
+        </div>
+
+        <div className="mt-6 flex justify-end gap-2">
           <button
             onClick={() => isEdit ? setEditingVideo(null) : setShowAddForm(false)}
             className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md flex items-center"
@@ -617,211 +1116,38 @@ const Videos = () => {
             <XMarkIcon className="h-5 w-5 mr-2" />
             Cancel
           </button>
+          <button
+            onClick={isEdit ? handleSubmitEdit : handleAddVideo}
+            disabled={loading}
+            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md flex items-center"
+          >
+            {loading ? (
+              <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-white mr-2"></div>
+            ) : (
+              <CheckIcon className="h-5 w-5 mr-2" />
+            )}
+            {isEdit ? 'Update Video' : 'Add Video'}
+          </button>
         </div>
-        
-        <form onSubmit={handleSubmit}>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <div className="mb-4">
-                <label className="block text-gray-400 mb-2">Video Title *</label>
-                <input
-                  type="text"
-                  className="w-full py-2 px-3 bg-dark-700 border border-dark-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-white"
-                  value={formData.title}
-                  onChange={(e) => setFormData({...formData, title: e.target.value})}
-                  required
-                />
-              </div>
-              
-              <div className="mb-4">
-                <label className="block text-gray-400 mb-2">Description</label>
-                <textarea
-                  className="w-full py-2 px-3 bg-dark-700 border border-dark-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-white h-24"
-                  value={formData.description}
-                  onChange={(e) => setFormData({...formData, description: e.target.value})}
-                ></textarea>
-              </div>
-              
-              <div className="mb-4">
-                <label className="block text-gray-400 mb-2">Thumbnail URL *</label>
-                <input
-                  type="text"
-                  className="w-full py-2 px-3 bg-dark-700 border border-dark-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-white"
-                  value={formData.thumbnailUrl}
-                  onChange={(e) => setFormData({...formData, thumbnailUrl: e.target.value})}
-                  placeholder="https://example.com/thumbnail.jpg"
-                  required
-                />
-              </div>
-              
-              <div className="mb-4">
-                <label className="block text-gray-400 mb-2">Video Iframe Code *</label>
-                <textarea
-                  className="w-full py-2 px-3 bg-dark-700 border border-dark-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-white h-24"
-                  value={formData.iframeCode}
-                  onChange={(e) => setFormData({...formData, iframeCode: e.target.value})}
-                  placeholder="<iframe src='https://example.com/embed/video' ...></iframe>"
-                  required
-                ></textarea>
-                <div className="mt-2 flex items-center">
-                  <input
-                    type="checkbox"
-                    id={`blockAds-${isEdit ? 'edit' : 'new'}`}
-                    className="mr-2"
-                    checked={formData.blockAds}
-                    onChange={(e) => setFormData({...formData, blockAds: e.target.checked})}
-                  />
-                  <label htmlFor={`blockAds-${isEdit ? 'edit' : 'new'}`} className="text-sm text-gray-400">
-                    İframe reklamlarını engelle (bazı video sağlayıcılarında sorunlara neden olabilir)
-                  </label>
-                </div>
-              </div>
-            </div>
-            
-            <div>
-              <div className="mb-4">
-                <div className="flex justify-between items-center mb-2">
-                  <label className="block text-gray-400">Categories</label>
-                  <button
-                    type="button"
-                    className="text-blue-500 hover:text-blue-400 text-sm"
-                    onClick={() => handleAddItem('categories')}
-                  >
-                    + Add Category
-                  </button>
-                </div>
-                {formData.categories.map((category, index) => (
-                  <div key={index} className="flex mb-2">
-                    <input
-                      type="text"
-                      className="flex-grow py-2 px-3 bg-dark-700 border border-dark-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-white"
-                      value={category}
-                      onChange={(e) => handleItemChange('categories', index, e.target.value)}
-                    />
-                    <button
-                      type="button"
-                      className="ml-2 text-red-500 hover:text-red-400"
-                      onClick={() => handleRemoveItem('categories', index)}
-                      disabled={formData.categories.length === 1}
-                    >
-                      <XMarkIcon className="h-5 w-5" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-              
-              <div className="mb-4">
-                <div className="flex justify-between items-center mb-2">
-                  <label className="block text-gray-400">Actors</label>
-                  <button
-                    type="button"
-                    className="text-blue-500 hover:text-blue-400 text-sm"
-                    onClick={() => handleAddItem('actors')}
-                  >
-                    + Add Actor
-                  </button>
-                </div>
-                {formData.actors.map((actor, index) => (
-                  <div key={index} className="flex mb-2">
-                    <input
-                      type="text"
-                      className="flex-grow py-2 px-3 bg-dark-700 border border-dark-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-white"
-                      value={actor}
-                      onChange={(e) => handleItemChange('actors', index, e.target.value)}
-                    />
-                    <button
-                      type="button"
-                      className="ml-2 text-red-500 hover:text-red-400"
-                      onClick={() => handleRemoveItem('actors', index)}
-                      disabled={formData.actors.length === 1}
-                    >
-                      <XMarkIcon className="h-5 w-5" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-              
-              <div className="mb-4">
-                <div className="flex justify-between items-center mb-2">
-                  <label className="block text-gray-400">Tags</label>
-                  <button
-                    type="button"
-                    className="text-blue-500 hover:text-blue-400 text-sm"
-                    onClick={() => handleAddItem('tags')}
-                  >
-                    + Add Tag
-                  </button>
-                </div>
-                {formData.tags.map((tag, index) => (
-                  <div key={index} className="flex mb-2">
-                    <input
-                      type="text"
-                      className="flex-grow py-2 px-3 bg-dark-700 border border-dark-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-white"
-                      value={tag}
-                      onChange={(e) => handleItemChange('tags', index, e.target.value)}
-                    />
-                    <button
-                      type="button"
-                      className="ml-2 text-red-500 hover:text-red-400"
-                      onClick={() => handleRemoveItem('tags', index)}
-                      disabled={formData.tags.length === 1}
-                    >
-                      <XMarkIcon className="h-5 w-5" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-              
-              <div className="mb-4">
-                <label className="flex items-center">
-                  <input
-                    type="checkbox"
-                    className="form-checkbox h-5 w-5 text-blue-500"
-                    checked={formData.featured}
-                    onChange={(e) => setFormData({...formData, featured: e.target.checked})}
-                  />
-                  <span className="ml-2 text-gray-400">Featured Video</span>
-                </label>
-              </div>
-            </div>
-          </div>
-          
-          <div className="flex justify-end mt-6">
-            <button
-              type="submit"
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-md flex items-center"
-              disabled={loading}
-            >
-              {loading ? (
-                <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-white mr-2"></div>
-              ) : (
-                <CheckIcon className="h-5 w-5 mr-2" />
-              )}
-              {isEdit ? 'Update Video' : 'Add Video'}
-            </button>
-          </div>
-        </form>
       </div>
     );
   };
 
   return (
-    <div className="p-6">
+    <div className="p-4 sm:p-6">
       {error && (
-        <div className="bg-red-500 bg-opacity-20 border border-red-500 text-red-500 px-4 py-3 rounded mb-4">
+        <div className="bg-red-500 text-white p-4 rounded-md mb-6">
           {error}
         </div>
       )}
       
       {success && (
-        <div className="bg-green-500 bg-opacity-20 border border-green-500 text-green-500 px-4 py-3 rounded mb-4">
+        <div className="bg-green-500 text-white p-4 rounded-md mb-6">
           {success}
         </div>
       )}
       
-      {editingVideo ? renderVideoForm(true) : 
-       showAddForm ? renderVideoForm(false) : 
-       renderVideoList()}
+      {editingVideo ? renderVideoForm(true) : showAddForm ? renderVideoForm() : renderVideoList()}
     </div>
   );
 };
