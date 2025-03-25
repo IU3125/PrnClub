@@ -53,99 +53,45 @@ const FilterBar = ({
     const fetchFilters = async () => {
       try {
         setLoading(true);
-        console.log("Fetching suggested categories and pornstars...");
+        console.log("Fetching categories and pornstars...");
         
-        // CATEGORIES - Fetch in two separate queries
-        // 1. First get suggested categories - Removing videoCount filter
-        const suggestedCategoriesQuery = query(
+        // CATEGORIES - Simple query with no suggested filters
+        const categoriesQuery = query(
           collection(db, 'categories'),
-          where('suggested', '==', true),
           orderBy('name', 'asc'),
           limit(10)
         );
         
-        const suggestedCategoriesSnapshot = await getDocs(suggestedCategoriesQuery);
-        console.log(`Found ${suggestedCategoriesSnapshot.size} suggested categories`);
+        const categoriesSnapshot = await getDocs(categoriesQuery);
+        console.log(`Found ${categoriesSnapshot.size} categories`);
         
-        let suggestedCategories = suggestedCategoriesSnapshot.docs.map(doc => ({
+        let categoriesList = categoriesSnapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data(),
-          videoCount: doc.data().videoCount || 0,
-          suggested: true
+          videoCount: doc.data().videoCount || 0
         }));
         
-        // 2. Then get additional non-suggested categories if needed
-        if (suggestedCategories.length < 9) {
-          // Removing videoCount filter, get any categories
-          const additionalCategoriesQuery = query(
-            collection(db, 'categories'),
-            orderBy('name', 'asc'),
-            limit(9 - suggestedCategories.length)
-          );
-          
-          const additionalCategoriesSnapshot = await getDocs(additionalCategoriesQuery);
-          console.log(`Found ${additionalCategoriesSnapshot.size} additional categories`);
-          
-          const additionalCategories = additionalCategoriesSnapshot.docs
-            .filter(doc => !suggestedCategories.some(c => c.id === doc.id)) // Avoid duplicates
-            .map(doc => ({
-              id: doc.id,
-              ...doc.data(),
-              videoCount: doc.data().videoCount || 0,
-              suggested: doc.data().suggested || false
-            }));
-          
-          suggestedCategories = [...suggestedCategories, ...additionalCategories];
-        }
-        
-        setCategories(suggestedCategories);
-        console.log("Final categories list:", suggestedCategories);
+        setCategories(categoriesList);
+        console.log("Final categories list:", categoriesList);
 
-        // PORNSTARS - Fetch in two separate queries using same approach
-        // 1. First get suggested pornstars - No videoCount filter
-        const suggestedPornstarsQuery = query(
+        // PORNSTARS - Simple query with no suggested filters
+        const pornstarsQuery = query(
           collection(db, 'pornstars'),
-          where('suggested', '==', true),
           orderBy('name', 'asc'),
           limit(10)
         );
         
-        const suggestedPornstarsSnapshot = await getDocs(suggestedPornstarsQuery);
-        console.log(`Found ${suggestedPornstarsSnapshot.size} suggested pornstars`);
+        const pornstarsSnapshot = await getDocs(pornstarsQuery);
+        console.log(`Found ${pornstarsSnapshot.size} pornstars`);
         
-        let suggestedPornstars = suggestedPornstarsSnapshot.docs.map(doc => ({
+        let pornstarsList = pornstarsSnapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data(),
-          videoCount: doc.data().videoCount || 0,
-          suggested: true
+          videoCount: doc.data().videoCount || 0
         }));
         
-        // 2. Then get additional non-suggested pornstars if needed
-        if (suggestedPornstars.length < 9) {
-          // No videoCount filter to get all pornstars if needed
-          const additionalPornstarsQuery = query(
-            collection(db, 'pornstars'),
-            orderBy('name', 'asc'),
-            limit(9 - suggestedPornstars.length)
-          );
-          
-          const additionalPornstarsSnapshot = await getDocs(additionalPornstarsQuery);
-          console.log(`Found ${additionalPornstarsSnapshot.size} additional pornstars`);
-          
-          const additionalPornstars = additionalPornstarsSnapshot.docs
-            .filter(doc => !suggestedPornstars.some(p => p.id === doc.id)) // Avoid duplicates
-            .map(doc => ({
-              id: doc.id,
-              ...doc.data(),
-              videoCount: doc.data().videoCount || 0,
-              suggested: doc.data().suggested || false
-            }));
-          
-          suggestedPornstars = [...suggestedPornstars, ...additionalPornstars];
-        }
-        
-        setPornstars(suggestedPornstars);
-        console.log("Final pornstars list:", suggestedPornstars);
+        setPornstars(pornstarsList);
+        console.log("Final pornstars list:", pornstarsList);
         
       } catch (error) {
         console.error('Error occurred while fetching filters:', error);
@@ -326,8 +272,6 @@ const FilterBar = ({
               </button>
               {loading ? (
                 <div className="text-gray-400 text-sm p-2">Loading...</div>
-              ) : categories.length === 0 ? (
-                <div className="text-gray-400 text-sm p-2">No categories found</div>
               ) : (
                 categories.map((category) => (
                   <button
@@ -338,8 +282,7 @@ const FilterBar = ({
                       'hover:bg-dark-700/50',
                       activeCategory === category.id && !isAllCategoriesPage
                         ? 'bg-primary-600/20 text-primary-400'
-                        : 'text-gray-400 hover:text-white',
-                      category.suggested ? 'border border-yellow-500/30' : ''
+                        : 'text-gray-400 hover:text-white'
                     )}
                   >
                     {category.name}
@@ -369,8 +312,6 @@ const FilterBar = ({
               </button>
               {loading ? (
                 <div className="text-gray-400 text-sm p-2">Loading...</div>
-              ) : pornstars.length === 0 ? (
-                <div className="text-gray-400 text-sm p-2">No pornstars found</div>
               ) : (
                 pornstars.map((pornstar) => (
                   <button
@@ -381,8 +322,7 @@ const FilterBar = ({
                       'hover:bg-dark-700/50',
                       activePornstar === pornstar.id && !isAllPornstarsPage
                         ? 'bg-primary-600/20 text-primary-400'
-                        : 'text-gray-400 hover:text-white',
-                      pornstar.suggested ? 'border border-yellow-500/30' : ''
+                        : 'text-gray-400 hover:text-white'
                     )}
                   >
                     {pornstar.name}

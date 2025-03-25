@@ -17,10 +17,8 @@ import {
   TrashIcon, 
   CheckIcon, 
   XMarkIcon,
-  MagnifyingGlassIcon,
-  StarIcon
+  MagnifyingGlassIcon
 } from '@heroicons/react/24/outline';
-import { StarIcon as StarIconSolid } from '@heroicons/react/24/solid';
 
 const Pornstars = () => {
   const [pornstars, setPornstars] = useState([]);
@@ -32,7 +30,6 @@ const Pornstars = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [selectedLetter, setSelectedLetter] = useState('all');
-  const [viewMode, setViewMode] = useState('all'); // 'all', 'suggested', 'regular'
 
   const alphabet = ['#', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'];
 
@@ -91,7 +88,6 @@ const Pornstars = () => {
         slug: newPornstar.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''),
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
-        suggested: false, // Default to not suggested
         videoCount: 0 // Initialize with zero videos
       };
       
@@ -169,39 +165,6 @@ const Pornstars = () => {
     }
   };
 
-  // Toggle suggested status for a pornstar
-  const handleToggleSuggested = async (pornstarId, currentStatus) => {
-    setLoading(true);
-    try {
-      const pornstarRef = doc(db, 'pornstars', pornstarId);
-      // Toggle the suggested status
-      const newSuggestedStatus = !currentStatus;
-      
-      // Update both in Firestore and local state
-      await updateDoc(pornstarRef, {
-        suggested: newSuggestedStatus,
-        updatedAt: serverTimestamp()
-      });
-      
-      console.log(`Pornstar ${pornstarId} suggested status updated to: ${newSuggestedStatus}`);
-      
-      // Update pornstars list
-      setPornstars(pornstars.map(pornstar => 
-        pornstar.id === pornstarId 
-          ? { ...pornstar, suggested: newSuggestedStatus } 
-          : pornstar
-      ));
-      
-      setSuccess(`Pornstar is now ${newSuggestedStatus ? 'suggested' : 'not suggested'}.`);
-      setError('');
-    } catch (error) {
-      console.error('Error updating suggested status:', error);
-      setError('An error occurred while updating suggested status.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   // Delete pornstar
   const handleDeletePornstar = async (pornstarId) => {
     if (!window.confirm('Are you sure you want to delete this pornstar?')) {
@@ -230,17 +193,13 @@ const Pornstars = () => {
     const searchLower = searchQuery.toLowerCase();
     const name = pornstar.name || '';
     const matchesSearch = name.toLowerCase().includes(searchLower);
-    const matchesViewMode = 
-      viewMode === 'all' || 
-      (viewMode === 'suggested' && pornstar.suggested) || 
-      (viewMode === 'regular' && !pornstar.suggested);
     
     if (selectedLetter === 'all') {
-      return matchesSearch && matchesViewMode;
+      return matchesSearch;
     } else if (selectedLetter === '#') {
-      return matchesSearch && matchesViewMode && /^[0-9]/.test(name);
+      return matchesSearch && /^[0-9]/.test(name);
     } else {
-      return matchesSearch && matchesViewMode && name.charAt(0).toUpperCase() === selectedLetter;
+      return matchesSearch && name.charAt(0).toUpperCase() === selectedLetter;
     }
   });
 
@@ -281,42 +240,6 @@ const Pornstars = () => {
             Add
           </button>
         </form>
-      </div>
-
-      {/* View Mode Selector */}
-      <div className="flex flex-wrap gap-2 mb-4 bg-dark-700 p-4 rounded-lg">
-        <div className="flex-1 text-gray-300 font-semibold">View:</div>
-        <button
-          onClick={() => setViewMode('all')}
-          className={`px-3 py-1 rounded ${
-            viewMode === 'all'
-              ? 'bg-primary-500 text-white'
-              : 'bg-dark-600 text-gray-300 hover:bg-dark-500'
-          }`}
-        >
-          All
-        </button>
-        <button
-          onClick={() => setViewMode('suggested')}
-          className={`px-3 py-1 rounded flex items-center ${
-            viewMode === 'suggested'
-              ? 'bg-primary-500 text-white'
-              : 'bg-dark-600 text-gray-300 hover:bg-dark-500'
-          }`}
-        >
-          <StarIconSolid className="h-4 w-4 mr-1 text-yellow-400" />
-          Suggested
-        </button>
-        <button
-          onClick={() => setViewMode('regular')}
-          className={`px-3 py-1 rounded ${
-            viewMode === 'regular'
-              ? 'bg-primary-500 text-white'
-              : 'bg-dark-600 text-gray-300 hover:bg-dark-500'
-          }`}
-        >
-          Regular
-        </button>
       </div>
 
       {/* Alphabet filter */}
@@ -369,9 +292,6 @@ const Pornstars = () => {
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
                 Videos
               </th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                Suggested
-              </th>
               <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">
                 Actions
               </th>
@@ -408,19 +328,6 @@ const Pornstars = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-gray-400">{pornstar.videoCount || 0}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <button 
-                      onClick={() => handleToggleSuggested(pornstar.id, pornstar.suggested)}
-                      className="p-1 rounded-full hover:bg-dark-600 transition-colors"
-                      title={pornstar.suggested ? "Remove from suggested" : "Add to suggested"}
-                    >
-                      {pornstar.suggested ? (
-                        <StarIconSolid className="h-5 w-5 text-yellow-400" />
-                      ) : (
-                        <StarIcon className="h-5 w-5 text-gray-400 hover:text-yellow-400" />
-                      )}
-                    </button>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     {editingPornstar === pornstar.id ? (
