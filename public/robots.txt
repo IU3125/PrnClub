@@ -1,6 +1,27 @@
 # https://www.robotstxt.org/robotstxt.html
 User-agent: *
+Allow: /
+Allow: /videos
+Allow: /video/
+Allow: /categories
+Allow: /category/
+Allow: /pornstars
+Allow: /pornstar/
+Allow: /about
+Allow: /contact
+Allow: /terms
+Allow: /privacy
+Allow: /dmca
+Allow: /sss
+Allow: /cookie
+Allow: /2257
+
+# Yönetim ve Kullanıcı Özel Sayfaları
 Disallow: /admin/
 Disallow: /login
 Disallow: /register
-Disallow: /profile 
+Disallow: /profile
+Disallow: /favorites
+
+# Sitemap
+Sitemap: https://www.prnclub.com/sitemap.xml 

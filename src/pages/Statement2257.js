@@ -41,8 +41,7 @@ const Statement2257 = () => {
               <p className="text-gray-300">
                 Content Provider Records Custodian<br />
                 PRN Club<br />
-                Email: records@prnclub.com<br />
-                Address: [Your Business Address]
+                Email: iucin2025@gmail.com
               </p>
             </div>
 

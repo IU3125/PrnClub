@@ -1,8 +1,16 @@
 import React from 'react';
+import SEO from '../components/seo/SEO';
 
 const DMCA = () => {
   return (
     <div className="container mx-auto px-4 py-8">
+      <SEO 
+        title="DMCA Politikası"
+        description="PRN Club DMCA politikası. Telif hakkı bildirimlerine ilişkin politikamız ve iletişim bilgilerimiz."
+        keywords="dmca, telif hakkı, telif hakkı bildirimi, DMCA politikası"
+        canonicalUrl={`${window.location.origin}/dmca`}
+      />
+      
       <div className="max-w-4xl mx-auto">
         <h1 className="text-3xl font-bold text-white mb-6">DMCA Notice & Takedown Procedure</h1>
         
@@ -45,8 +53,7 @@ const DMCA = () => {
               <p className="text-gray-300">
                 DMCA Agent<br />
                 PRN Club<br />
-                Email: dmca@prnclub.com<br />
-                Address: [Your Business Address]
+                Email: iucin2025@gmail.com
               </p>
             </div>
 

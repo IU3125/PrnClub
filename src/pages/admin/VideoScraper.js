@@ -7,8 +7,10 @@ import {
   XMarkIcon,
   PencilIcon,
   PlusIcon,
-  TrashIcon
+  TrashIcon,
+  ClockIcon
 } from '@heroicons/react/24/outline';
+import TagSuggester from '../../components/admin/TagSuggester';
 
 const VideoScraper = () => {
   const [url, setUrl] = useState('');
@@ -24,10 +26,17 @@ const VideoScraper = () => {
     actors: [],
     iframeCode: '',
     thumbnailUrl: '',
-    tags: []
+    tags: [],
+    duration: 0
   });
   const [newCategory, setNewCategory] = useState('');
   const [newActor, setNewActor] = useState('');
+  const [durationInput, setDurationInput] = useState({
+    hours: 0,
+    minutes: 0,
+    seconds: 0
+  });
+  const [newTag, setNewTag] = useState('');
 
   const loadCategories = async () => {
     try {
@@ -78,11 +87,18 @@ const VideoScraper = () => {
         ...data,
         categories: data.categories || [],
         actors: data.actors || [],
-        tags: data.tags || []
+        tags: data.tags || [],
+        duration: 0 // Başlangıçta 0 olarak ayarla
       };
 
       setScrapedData(initialData);
       setEditedData(initialData);
+      // Süre giriş alanını sıfırla
+      setDurationInput({
+        hours: 0,
+        minutes: 0,
+        seconds: 0
+      });
       setIsEditing({ categories: true, actors: true });
       setSuccess('Video information scraped successfully! You can now edit the information.');
     } catch (err) {
@@ -272,6 +288,10 @@ const VideoScraper = () => {
         featured: false,
         blockAds: true,
         tags: editedData.tags || [],
+        duration: editedData.duration,
+        views: 0,
+        likes: 0,
+        dislikes: 0,
         updatedAt: new Date()
       };
 
@@ -285,7 +305,8 @@ const VideoScraper = () => {
         actors: [],
         iframeCode: '',
         thumbnailUrl: '',
-        tags: []
+        tags: [],
+        duration: 0
       });
       setUrl('');
     } catch (err) {
@@ -319,6 +340,39 @@ const VideoScraper = () => {
       console.error('Error adding tag:', err);
       setError(`Failed to add tag: ${err.message}`);
     }
+  };
+
+  const handleDurationChange = (field, value) => {
+    // Sayısal değer kontrolü ve sınırlandırma
+    let numValue = parseInt(value) || 0;
+    
+    // Saniye ve dakika için 0-59 aralığı kontrolü
+    if ((field === 'minutes' || field === 'seconds') && numValue > 59) {
+      numValue = 59;
+    }
+    if (numValue < 0) {
+      numValue = 0;
+    }
+    
+    const newDuration = { ...durationInput, [field]: numValue };
+    setDurationInput(newDuration);
+    
+    // Süreyi saniye olarak hesapla
+    const totalSeconds = (newDuration.hours * 3600) + (newDuration.minutes * 60) + newDuration.seconds;
+    
+    // editedData state'ini güncelle
+    handleInputChange('duration', totalSeconds);
+  };
+  
+  // Format duration (saniyeden saat:dakika:saniye formatına dönüştürme)
+  const formatDuration = (seconds) => {
+    if (!seconds && seconds !== 0) return '0:00:00';
+    
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const remainingSeconds = seconds % 60;
+    
+    return `${hours}:${minutes < 10 ? '0' : ''}${minutes}:${remainingSeconds < 10 ? '0' : ''}${remainingSeconds}`;
   };
 
   return (
@@ -387,6 +441,49 @@ const VideoScraper = () => {
                   onChange={(e) => handleInputChange('description', e.target.value)}
                   rows="3"
                 />
+            </div>
+            
+            <div>
+              <label className="block text-gray-400 mb-1">Duration</label>
+              <div className="flex items-center space-x-2">
+                <div className="flex items-center">
+                  <input
+                    type="number"
+                    min="0"
+                    max="99"
+                    className="w-16 py-2 px-3 bg-dark-600 border border-dark-500 rounded-md text-white text-center"
+                    value={durationInput.hours}
+                    onChange={(e) => handleDurationChange('hours', e.target.value)}
+                  />
+                  <span className="text-gray-400 mx-1">h</span>
+                </div>
+                <div className="flex items-center">
+                  <input
+                    type="number"
+                    min="0"
+                    max="59"
+                    className="w-16 py-2 px-3 bg-dark-600 border border-dark-500 rounded-md text-white text-center"
+                    value={durationInput.minutes}
+                    onChange={(e) => handleDurationChange('minutes', e.target.value)}
+                  />
+                  <span className="text-gray-400 mx-1">m</span>
+                </div>
+                <div className="flex items-center">
+                  <input
+                    type="number"
+                    min="0"
+                    max="59"
+                    className="w-16 py-2 px-3 bg-dark-600 border border-dark-500 rounded-md text-white text-center"
+                    value={durationInput.seconds}
+                    onChange={(e) => handleDurationChange('seconds', e.target.value)}
+                  />
+                  <span className="text-gray-400 mx-1">s</span>
+                </div>
+                <div className="flex items-center text-gray-400 ml-2">
+                  <ClockIcon className="h-5 w-5 mr-1" />
+                  <span className="text-white">{formatDuration(editedData.duration)}</span>
+                </div>
+              </div>
             </div>
             
             <div>
@@ -459,35 +556,45 @@ const VideoScraper = () => {
                   </div>
             </div>
 
-            <div>
-              <div className="flex justify-between items-center mb-1">
-                <label className="text-gray-400">Tags</label>
-              </div>
-              <div className="flex flex-wrap gap-2 mb-2">
-                {(editedData.tags || []).map((tag, index) => (
-                  <span key={index} className="bg-dark-600 text-white px-2 py-1 rounded flex items-center">
-                    {tag}
-                    <button
-                      onClick={() => handleRemoveItem('tags', index)}
-                      className="ml-1 text-red-500 hover:text-red-400"
-                    >
-                      <TrashIcon className="h-4 w-4" />
-                    </button>
-                  </span>
-                ))}
-              </div>
-              <div className="flex gap-1">
+            <div className="mb-6">
+              <label className="block text-gray-300 text-sm font-medium mb-2">
+                Tags
+              </label>
+              <div className="flex items-center mb-2">
                 <input
                   type="text"
-                  className="flex-grow py-1 px-2 bg-dark-600 border border-dark-500 rounded text-white text-sm"
-                  placeholder="Add tag and press Enter"
-                  onKeyPress={(e) => {
-                    if (e.key === 'Enter' && e.target.value.trim()) {
-                      handleAddTag(e.target.value);
-                      e.target.value = '';
-                    }
-                  }}
+                  value={newTag}
+                  onChange={(e) => setNewTag(e.target.value)}
+                  placeholder="Enter a tag"
+                  className="bg-dark-700 text-white w-full px-3 py-2 rounded-l-lg focus:outline-none"
                 />
+                <button
+                  onClick={() => handleAddTag(newTag)}
+                  className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-r-lg"
+                >
+                  Add
+                </button>
+              </div>
+              
+              {/* Etiket Önerici */}
+              <TagSuggester 
+                title={editedData.title} 
+                description={editedData.description}
+                onSelectTag={handleAddTag}
+              />
+              
+              <div className="mt-3 flex flex-wrap gap-2">
+                {editedData.tags.map((tag, index) => (
+                  <div key={index} className="bg-dark-600 text-gray-300 px-3 py-1 rounded-full flex items-center">
+                    <span>{tag}</span>
+                    <button
+                      onClick={() => handleRemoveItem('tags', index)}
+                      className="ml-2 text-gray-400 hover:text-red-500"
+                    >
+                      <XMarkIcon className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))}
               </div>
             </div>
             

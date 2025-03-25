@@ -382,8 +382,16 @@ const Dashboard = () => {
 
   // Video süresini biçimlendir (saniye cinsinden)
   const formatDuration = (seconds) => {
-    const minutes = Math.floor(seconds / 60);
+    if (!seconds && seconds !== 0) return '0:00';
+    
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
     const remainingSeconds = seconds % 60;
+    
+    if (hours > 0) {
+      return `${hours}:${minutes < 10 ? '0' : ''}${minutes}:${remainingSeconds < 10 ? '0' : ''}${remainingSeconds}`;
+    }
+    
     return `${minutes}:${remainingSeconds < 10 ? '0' : ''}${remainingSeconds}`;
   };
 

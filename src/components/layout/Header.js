@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { 
   MagnifyingGlassIcon, 
@@ -20,9 +20,61 @@ const Header = () => {
   const [activePornstar, setActivePornstar] = useState('all');
   const { currentUser, userData, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   
   // Featured count - now using userData instead of currentUser
   const featuredCount = userData?.featured?.length || 0;
+
+  // Sync with URL parameters
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    const pathname = location.pathname;
+    
+    // Set search query if present in URL
+    const urlSearchQuery = searchParams.get('search');
+    if (urlSearchQuery) {
+      setSearchQuery(decodeURIComponent(urlSearchQuery));
+    }
+    
+    // Reset category and pornstar when on respective index pages
+    if (pathname === '/category' || pathname.startsWith('/category/')) {
+      setActiveCategory('all');
+      setActivePornstar('all');
+    } else if (pathname === '/pornstar' || pathname.startsWith('/pornstar/')) {
+      setActivePornstar('all');
+      setActiveCategory('all');
+    } else {
+      // Set active category if present in URL
+      const urlCategory = searchParams.get('category');
+      if (urlCategory) {
+        setActiveCategory(urlCategory);
+        setActivePornstar('all'); // Reset pornstar when category is selected
+      }
+      
+      // Set active pornstar if present in URL
+      const urlPornstar = searchParams.get('pornstar');
+      if (urlPornstar) {
+        setActivePornstar(urlPornstar);
+        setActiveCategory('all'); // Reset category when pornstar is selected
+      }
+    }
+    
+    // Set active filter based on path or query param
+    if (location.pathname === '/' || location.pathname.startsWith('/videos')) {
+      const filter = searchParams.get('filter');
+      if (filter) {
+        setActiveFilter(filter);
+      } else if (location.pathname.includes('/newest')) {
+        setActiveFilter('newest');
+      } else if (location.pathname.includes('/popular')) {
+        setActiveFilter('popular');
+      } else if (location.pathname.includes('/trending')) {
+        setActiveFilter('trending');
+      } else if (location.pathname.includes('/top-rated')) {
+        setActiveFilter('top-rated');
+      }
+    }
+  }, [location]);
 
   const handleSearch = (e) => {
     e.preventDefault();
@@ -30,6 +82,8 @@ const Header = () => {
       // Arama sorgusunu küçük harfe çevirip URL'e ekle
       const query = searchQuery.trim().toLowerCase();
       navigate(`/?search=${encodeURIComponent(query)}`);
+      // Close mobile menu if open
+      if (isMenuOpen) setIsMenuOpen(false);
     }
   };
 
@@ -37,6 +91,8 @@ const Header = () => {
     try {
       await logout();
       navigate('/');
+      // Close mobile menu if open
+      if (isMenuOpen) setIsMenuOpen(false);
     } catch (error) {
       console.error('Error occurred during logout:', error);
     }
@@ -115,9 +171,11 @@ const Header = () => {
             onClick={() => setIsMenuOpen(!isMenuOpen)}
             className="md:hidden p-2 text-gray-400 hover:text-white transition-colors duration-200"
           >
-            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={isMenuOpen ? "M6 18L18 6M6 6l12 12" : "M4 6h16M4 12h16M4 18h16"} />
-            </svg>
+            {isMenuOpen ? (
+              <XMarkIcon className="h-6 w-6" />
+            ) : (
+              <Bars3Icon className="h-6 w-6" />
+            )}
           </button>
         </div>
 
@@ -175,10 +233,7 @@ const Header = () => {
                   
                   {/* Logout button */}
                   <button
-                    onClick={() => {
-                      handleLogout();
-                      setIsMenuOpen(false);
-                    }}
+                    onClick={handleLogout}
                     className="flex items-center py-2 px-4 rounded-md text-gray-300 hover:bg-dark-600"
                   >
                     <ArrowRightOnRectangleIcon className="w-5 h-5 mr-2" />

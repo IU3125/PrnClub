@@ -1,8 +1,16 @@
 import React from 'react';
+import SEO from '../components/seo/SEO';
 
 const About = () => {
   return (
     <div className="container mx-auto px-4 py-8">
+      <SEO 
+        title="Hakkımızda"
+        description="PRN Club hakkında bilgi edinin. Misyonumuz, vizyonumuz ve sizlere sunduğumuz yüksek kaliteli video içerik platformu ile tanışın."
+        keywords="hakkımızda, PRN Club, video platformu, misyon, vizyon"
+        canonicalUrl={`${window.location.origin}/about`}
+      />
+
       <div className="max-w-4xl mx-auto">
         <h1 className="text-3xl font-bold text-white mb-6">About PRN Club</h1>
         

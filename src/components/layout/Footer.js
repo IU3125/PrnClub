@@ -27,32 +27,6 @@ const Footer = () => {
               </div>
               
               <div>
-                <h3 className="text-white font-semibold mb-4">Categories</h3>
-                <ul className="space-y-2">
-                  <li>
-                    <Link to="/category/popular" className="text-gray-400 hover:text-primary-400 text-sm">
-                      Popular
-                    </Link>
-                  </li>
-                  <li>
-                    <Link to="/category/trending" className="text-gray-400 hover:text-primary-400 text-sm">
-                      Trending
-                    </Link>
-                  </li>
-                  <li>
-                    <Link to="/category/newest" className="text-gray-400 hover:text-primary-400 text-sm">
-                      Newest
-                    </Link>
-                  </li>
-                  <li>
-                    <Link to="/category/most-liked" className="text-gray-400 hover:text-primary-400 text-sm">
-                      Most Liked
-                    </Link>
-                  </li>
-                </ul>
-              </div>
-              
-              <div>
                 <h3 className="text-white font-semibold mb-4">Links</h3>
                 <ul className="space-y-2">
                   <li>

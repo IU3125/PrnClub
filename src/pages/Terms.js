@@ -62,8 +62,7 @@ const Terms = () => {
             <div className="bg-dark-700 p-4 rounded-md">
               <p className="text-gray-300">
                 PRN Club<br />
-                Email: support@prnclub.com<br />
-                Address: [Your Business Address]
+                Email: iucin2025@gmail.com
               </p>
             </div>
 

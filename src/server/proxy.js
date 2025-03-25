@@ -184,7 +184,7 @@ app.get('/api/scrape', async (req, res) => {
     // iframe kodu oluştur
     const videoId = url.match(/video-([^/]+)/)?.[1];
     if (videoId) {
-      videoInfo.iframeCode = `<iframe src="https://www.eporner.com/embed/${videoId}/"></iframe>`;
+      videoInfo.iframeCode = `<iframe src="https://prnclub-vn.web.app/embed/${videoId}/" frameborder="0" width="100%" height="100%" scrolling="no" allowfullscreen></iframe>`;
     }
 
     // Eğer hiç kategori bulunamadıysa varsayılan kategori ekle

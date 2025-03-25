@@ -3,6 +3,12 @@ const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
 const cheerio = require('cheerio');
+const admin = require('firebase-admin');
+
+// Initialize Firebase Admin SDK
+if (!admin.apps.length) {
+  admin.initializeApp();
+}
 
 const app = express();
 
@@ -167,6 +173,49 @@ app.get('/scrape', async (req, res) => {
       error: errorMessage,
       details: error.message,
       url: req.query.url // Hangi URL'de hata olduğunu görmek için
+    });
+  }
+});
+
+// Contact form submission endpoint
+app.post('/contact', async (req, res) => {
+  try {
+    const { name, email, subject, message } = req.body;
+    
+    // Validate required fields
+    if (!name || !email || !subject || !message) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'All fields are required' 
+      });
+    }
+    
+    // Store the message in Firestore
+    const db = admin.firestore();
+    const contactRef = db.collection('contactMessages');
+    
+    await contactRef.add({
+      name,
+      email,
+      subject,
+      message,
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      read: false
+    });
+    
+    // You can implement actual email sending here using nodemailer or similar
+    // For now, we'll just log it and store in Firestore
+    console.log(`New contact message from ${name} (${email}): ${subject}`);
+    
+    res.status(200).json({
+      success: true,
+      message: 'Your message has been sent successfully'
+    });
+  } catch (error) {
+    console.error('Contact form error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to send message'
     });
   }
 });

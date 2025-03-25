@@ -124,6 +124,7 @@ const AdminLayout = () => {
     { name: 'Pornstars', path: '/admin/pornstars', icon: UsersIcon, access: isFullAdmin },
     { name: 'Categories', path: '/admin/categories', icon: Squares2X2Icon, access: isFullAdmin },
     { name: 'Advertisements', path: '/admin/advertisements', icon: CurrencyDollarIcon, access: true },
+    { name: 'SEO Analyzer', path: '/admin/seo-analyzer', icon: Squares2X2Icon, access: true },
     { name: 'Profile', path: '/admin/profile', icon: UserCircleIcon, access: true },
   ];
 

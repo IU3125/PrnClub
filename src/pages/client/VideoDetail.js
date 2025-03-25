@@ -22,6 +22,8 @@ import { useAuth } from '../../context/AuthContext';
 import VideoCard from '../../components/video/VideoCard';
 import CommentSection from '../../components/video/CommentSection';
 import AdDisplay from '../../components/advertisements/AdDisplay';
+import SEO from '../../components/seo/SEO';
+import VideoSchema from '../../components/seo/VideoSchema';
 import { 
   EyeIcon, 
   HandThumbUpIcon, 
@@ -516,6 +518,22 @@ const VideoDetail = () => {
 
   return (
     <div className="container mx-auto px-4 py-8">
+      {video && (
+        <>
+          <SEO 
+            title={video.title}
+            description={video.description ? 
+              (video.description.length > 160 ? video.description.substring(0, 157) + '...' : video.description) 
+              : `${video.title} - En kaliteli içerik PRN Club'da`}
+            keywords={video.tags ? video.tags.join(', ') : ''}
+            ogImage={video.thumbnailUrl || ''}
+            ogType="video.other"
+            canonicalUrl={`${window.location.origin}/video/${id}`}
+          />
+          <VideoSchema video={video} />
+        </>
+      )}
+      
       {(location.state?.from === '/categories' || location.state?.from === '/pornstars') && (
         <button
           onClick={handleBackClick}

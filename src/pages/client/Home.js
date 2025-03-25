@@ -5,6 +5,7 @@ import { db } from '../../firebase/config';
 import VideoCard from '../../components/video/VideoCard';
 import AdDisplay from '../../components/advertisements/AdDisplay';
 import { ArrowPathIcon } from '@heroicons/react/24/outline';
+import SEO from '../../components/seo/SEO';
 
 const Home = () => {
   const [videos, setVideos] = useState([]);
@@ -131,6 +132,14 @@ const Home = () => {
 
   return (
     <div className="container mx-auto px-4 py-8">
+      <SEO 
+        title="En Kaliteli Video İçerikleri"
+        description="PRN Club'da en yeni ve en popüler videoları keşfedin. Yüksek kaliteli video içeriklerine ücretsiz erişim."
+        keywords="videolar, izle, popüler videolar, ücretsiz içerik"
+        ogImage="/images/og-image-home.jpg"
+        canonicalUrl={`${window.location.origin}${location.pathname}`}
+      />
+
       {/* Header Ad */}
       <div className="mb-6">
         <AdDisplay position="header" />

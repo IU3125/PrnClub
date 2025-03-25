@@ -36,8 +36,15 @@ const Videos = () => {
     tags: [],
     actors: [],
     blockAds: true, // Reklam engelleme seçeneği
+    duration: 0, // Video süresi (saniye cinsinden)
   };
   const [editForm, setEditForm] = useState(initialFormState);
+  // Duration input states
+  const [durationInput, setDurationInput] = useState({
+    hours: 0,
+    minutes: 0,
+    seconds: 0
+  });
 
   // Video ekleme için state
   const [showAddForm, setShowAddForm] = useState(false);
@@ -51,6 +58,7 @@ const Videos = () => {
     thumbnailUrl: '',
     iframeCode: '',
     blockAds: true, // Reklam engelleme seçeneği
+    duration: 0, // Video süresi (saniye cinsinden)
   });
   const [videoFile, setVideoFile] = useState(null);
   const [thumbnailFile, setThumbnailFile] = useState(null);
@@ -183,6 +191,19 @@ const Videos = () => {
       tags: video.tags || [],
       actors: video.actors || [],
       blockAds: video.blockAds !== undefined ? video.blockAds : true, // Reklam engelleme seçeneği
+      duration: video.duration || 0, // Video süresi
+    });
+    
+    // Set duration input values based on the video's duration in seconds
+    const totalSeconds = video.duration || 0;
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    
+    setDurationInput({
+      hours,
+      minutes,
+      seconds
     });
   };
 
@@ -490,6 +511,39 @@ const Videos = () => {
     }
   };
 
+  // Handle duration input changes
+  const handleDurationChange = (field, value, isEdit = true) => {
+    // Ensure the value is a number and is valid
+    let numValue = parseInt(value) || 0;
+    
+    // Limit minutes and seconds to 0-59 range
+    if ((field === 'minutes' || field === 'seconds') && numValue > 59) {
+      numValue = 59;
+    }
+    if (numValue < 0) {
+      numValue = 0;
+    }
+    
+    // Update duration input state
+    const newDuration = { ...durationInput, [field]: numValue };
+    setDurationInput(newDuration);
+    
+    // Calculate total seconds and update form
+    const totalSeconds = (newDuration.hours * 3600) + (newDuration.minutes * 60) + newDuration.seconds;
+    
+    if (isEdit) {
+      setEditForm({
+        ...editForm,
+        duration: totalSeconds
+      });
+    } else {
+      setNewVideo({
+        ...newVideo,
+        duration: totalSeconds
+      });
+    }
+  };
+  
   // Video dosyası seçildiğinde
   const handleVideoChange = (e) => {
     const file = e.target.files[0];
@@ -618,7 +672,7 @@ const Videos = () => {
         featured: newVideo.featured,
         thumbnailUrl: newVideo.thumbnailUrl,
         iframeCode: newVideo.iframeCode,
-        duration: Math.floor(Math.random() * 600) + 60,
+        duration: newVideo.duration || 0,
         views: 0,
         likes: 0,
         dislikes: 0,
@@ -653,6 +707,7 @@ const Videos = () => {
         thumbnailUrl: '',
         iframeCode: '',
         blockAds: true,
+        duration: 0,
       });
       setVideoFile(null);
       setThumbnailFile(null);
@@ -675,13 +730,46 @@ const Videos = () => {
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 sm:gap-0 mb-6">
           <h1 className="text-2xl font-bold text-white">Videos</h1>
           
-          <button
-            onClick={() => setShowAddForm(true)}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md flex items-center"
-          >
-            <PlusIcon className="h-5 w-5 mr-2" />
-            Add Video
-          </button>
+          {/* Search and Add buttons */}
+          <div className="flex flex-col sm:flex-row gap-2 mb-4">
+            <div className="relative flex-grow">
+              <input
+                type="text"
+                className="w-full pl-10 pr-4 py-2 bg-dark-600 border border-dark-500 rounded-md text-white"
+                placeholder="Search videos by title, description, category, etc."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+              <MagnifyingGlassIcon className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+            </div>
+            <button 
+              className="flex items-center justify-center px-4 py-2 bg-green-600 hover:bg-green-700 rounded-md text-white"
+              onClick={() => {
+                setShowAddForm(true);
+                setNewVideo({
+                  title: '',
+                  description: '',
+                  categories: [],
+                  actors: [],
+                  tags: [],
+                  featured: false,
+                  thumbnailUrl: '',
+                  iframeCode: '',
+                  blockAds: true,
+                  duration: 0,
+                });
+                // Reset duration input
+                setDurationInput({
+                  hours: 0,
+                  minutes: 0,
+                  seconds: 0
+                });
+              }}
+            >
+              <PlusIcon className="h-5 w-5 mr-2" />
+              Add Video
+            </button>
+          </div>
         </div>
 
         {/* Category and Actor Management */}
@@ -1093,6 +1181,51 @@ const Videos = () => {
               onChange={(e) => setFormData({ ...formData, thumbnailUrl: e.target.value })}
               required
             />
+          </div>
+
+          <div className="md:col-span-2">
+            <label className="block text-gray-400 mb-1 flex items-center">
+              <ClockIcon className="h-5 w-5 mr-1" /> Video Duration
+            </label>
+            <div className="flex items-center space-x-2">
+              <div className="flex items-center">
+                <input
+                  type="number"
+                  min="0"
+                  max="99"
+                  className="w-16 py-2 px-3 bg-dark-600 border border-dark-500 rounded-md text-white text-center"
+                  value={durationInput.hours}
+                  onChange={(e) => handleDurationChange('hours', e.target.value, isEdit)}
+                />
+                <span className="text-gray-400 mx-1">h</span>
+              </div>
+              <div className="flex items-center">
+                <input
+                  type="number"
+                  min="0"
+                  max="59"
+                  className="w-16 py-2 px-3 bg-dark-600 border border-dark-500 rounded-md text-white text-center"
+                  value={durationInput.minutes}
+                  onChange={(e) => handleDurationChange('minutes', e.target.value, isEdit)}
+                />
+                <span className="text-gray-400 mx-1">m</span>
+              </div>
+              <div className="flex items-center">
+                <input
+                  type="number"
+                  min="0"
+                  max="59"
+                  className="w-16 py-2 px-3 bg-dark-600 border border-dark-500 rounded-md text-white text-center"
+                  value={durationInput.seconds}
+                  onChange={(e) => handleDurationChange('seconds', e.target.value, isEdit)}
+                />
+                <span className="text-gray-400 mx-1">s</span>
+              </div>
+              <div className="ml-4 text-white">
+                <span className="text-gray-400">Total: </span>
+                {formatDuration(formData.duration)}
+              </div>
+            </div>
           </div>
 
           <div className="md:col-span-2">
