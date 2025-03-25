@@ -56,7 +56,7 @@ const FilterBar = ({
         console.log("Fetching suggested categories and pornstars...");
         
         // CATEGORIES - Fetch in two separate queries
-        // 1. First get suggested categories
+        // 1. First get suggested categories - Removing videoCount filter
         const suggestedCategoriesQuery = query(
           collection(db, 'categories'),
           where('suggested', '==', true),
@@ -76,10 +76,9 @@ const FilterBar = ({
         
         // 2. Then get additional non-suggested categories if needed
         if (suggestedCategories.length < 9) {
+          // Removing videoCount filter, get any categories
           const additionalCategoriesQuery = query(
             collection(db, 'categories'),
-            where('videoCount', '>', 0),
-            orderBy('videoCount', 'desc'),
             orderBy('name', 'asc'),
             limit(9 - suggestedCategories.length)
           );
@@ -103,7 +102,7 @@ const FilterBar = ({
         console.log("Final categories list:", suggestedCategories);
 
         // PORNSTARS - Fetch in two separate queries using same approach
-        // 1. First get suggested pornstars
+        // 1. First get suggested pornstars - No videoCount filter
         const suggestedPornstarsQuery = query(
           collection(db, 'pornstars'),
           where('suggested', '==', true),
@@ -123,7 +122,7 @@ const FilterBar = ({
         
         // 2. Then get additional non-suggested pornstars if needed
         if (suggestedPornstars.length < 9) {
-          // Remove videoCount filter to get all pornstars if needed
+          // No videoCount filter to get all pornstars if needed
           const additionalPornstarsQuery = query(
             collection(db, 'pornstars'),
             orderBy('name', 'asc'),
